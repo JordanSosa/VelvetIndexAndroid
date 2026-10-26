@@ -287,7 +287,7 @@ details .body{padding:0 13px 13px}
 const el = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
   c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-const enc = encodeURIComponent;
+const uri = encodeURIComponent;
 const uniq = a => [...new Set(a)];
 
 function note(msg) {
@@ -338,7 +338,7 @@ function proxied(url, referer) {
   if (!url) return '';
   if (!/^https?:/i.test(url)) return url;
   if (!S.port) return url;
-  return 'http://127.0.0.1:' + S.port + '/m?u=' + enc(url) + (referer ? '&r=' + enc(referer) : '');
+  return 'http://127.0.0.1:' + S.port + '/m?u=' + uri(url) + (referer ? '&r=' + uri(referer) : '');
 }
 function origin(u) { try { return new URL(u).origin + '/'; } catch (e) { return ''; } }
 
@@ -394,7 +394,7 @@ async function searchOne(src, query, page, serial) {
   if (src.kind === 'video') {
     const base = pref('video_api');
     if (!base) throw new Error('no video API configured');
-    url = base.replace(/\/+$/, '') + '/' + src.id + '/search?key=' + enc(query) + '&page=' + (page + 1);
+    url = base.replace(/\/+$/, '') + '/' + src.id + '/search?key=' + uri(query) + '&page=' + (page + 1);
   } else {
     url = src.url(query, page);
   }
@@ -523,7 +523,7 @@ function shufflePick() {
 function searchX() {
   const q = el('query').value.trim();
   if (!q) return note('Enter a search term');
-  Native.open('https://x.com/search?q=' + enc(q + ' filter:media'));
+  Native.open('https://x.com/search?q=' + uri(q + ' filter:media'));
 }
 
 function toggleLinks() { el('links').classList.toggle('hidden'); }
