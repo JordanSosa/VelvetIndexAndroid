@@ -504,6 +504,80 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** Fetch a page and shrink it with a regex BEFORE it crosses the JS bridge.
+         *  findPattern wins over chunkPattern. Falls back to the raw body. */
+        @JavascriptInterface public void scrape(String reqId, String url, String headersJson,
+                                                String chunkPattern, String findPattern, int max) {
+            net.execute(() -> {
+                HttpURLConnection c = null;
+                try {
+                    String desktopUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+                    c = (HttpURLConnection) new URL(url).openConnection();
+                    c.setInstanceFollowRedirects(true);
+                    c.setConnectTimeout(15000);
+                    c.setReadTimeout(30000);
+                    c.setRequestProperty("User-Agent", desktopUa);
+                    c.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8");
+                    c.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
+                    c.setRequestProperty("Accept-Encoding", "identity");
+                    if (headersJson != null && !headersJson.isEmpty() && !headersJson.equals("{}")) {
+                        JSONObject h = new JSONObject(headersJson);
+                        for (Iterator<String> it = h.keys(); it.hasNext(); ) {
+                            String k = it.next();
+                            c.setRequestProperty(k, h.optString(k));
+                        }
+                    }
+                    int status = c.getResponseCode();
+                    InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
+                    String body = "";
+                    if (in != null) {
+                        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                        byte[] buf = new byte[32768];
+                        int n, total = 0;
+                        while ((n = in.read(buf)) > 0 && total < 12000000) { bo.write(buf, 0, n); total += n; }
+                        in.close();
+                        body = bo.toString("UTF-8");
+                    }
+                    int lim = max <= 0 ? 60 : max;
+                    if (findPattern != null && !findPattern.isEmpty()) body = reduceFind(body, findPattern, lim);
+                    else if (chunkPattern != null && !chunkPattern.isEmpty()) body = reduceChunks(body, chunkPattern, lim);
+                    callJs("onFetch", reqId, String.valueOf(status), "{}", body);
+                } catch (Exception e) {
+                    callJs("onFetchError", reqId, String.valueOf(e.getMessage()));
+                } finally { if (c != null) c.disconnect(); }
+            });
+        }
+
+        private String reduceFind(String body, String pattern, int max) {
+            try {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile(pattern).matcher(body);
+                StringBuilder sb = new StringBuilder();
+                int n = 0;
+                while (m.find() && n++ < max) {
+                    String s = m.groupCount() >= 1 && m.group(1) != null ? m.group(1) : m.group();
+                    if (sb.length() > 0) sb.append('\n');
+                    sb.append(s);
+                }
+                return sb.length() > 0 ? sb.toString() : body;
+            } catch (Exception e) { return body; }
+        }
+
+        private String reduceChunks(String body, String pattern, int max) {
+            try {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile(pattern).matcher(body);
+                java.util.ArrayList<Integer> pos = new java.util.ArrayList<Integer>();
+                while (m.find() && pos.size() < max) pos.add(Integer.valueOf(m.start()));
+                if (pos.isEmpty()) return body;
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < pos.size(); i++) {
+                    int start = pos.get(i).intValue();
+                    int end = (i + 1 < pos.size()) ? pos.get(i + 1).intValue() : body.length();
+                    sb.append(body, start, end).append('\n');
+                }
+                return sb.toString();
+            } catch (Exception e) { return body; }
+        }
+
         @JavascriptInterface public void abort(String reqId) {
             HttpURLConnection c;
             synchronized (inflight) { c = inflight.get(reqId); }

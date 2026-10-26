@@ -46,11 +46,11 @@ textarea{min-height:76px}
 .badge{position:absolute;right:5px;bottom:5px;background:#160f1ad9;border-radius:6px;padding:3px 6px;
     font-size:9.5px;font-weight:700;letter-spacing:.4px}
 .badge.r{left:5px;right:auto;bottom:auto;top:5px}
+.badge.play{background:#a85e80e6}
 .empty{padding:34px 12px;text-align:center;border:1px dashed #5c4154;border-radius:12px;color:#bcaac1}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .chip{background:#241a2b;border:1px solid #5c4154;border-radius:999px;padding:7px 12px;
     font-size:12px;min-height:34px;display:inline-flex;align-items:center;cursor:pointer}
-.chip.on{background:#a85e80;border-color:#c98aa8}
 .note{font-size:11.5px;color:#a692ac;margin:4px 0 10px;line-height:1.4}
 dialog{background:#1e1626;color:#fff;border:1px solid #7a4f66;border-radius:16px;
     width:calc(100% - 20px);max-width:520px;padding:18px}
@@ -95,13 +95,14 @@ details .body{padding:0 13px 13px}
     <h2>Discover</h2>
 
     <div class="line">
-      <select id="source" class="fix" style="flex:0 0 148px">
+      <select id="source" class="fix" style="flex:0 0 152px">
         <option value="all">All enabled APIs</option>
         <option value="booru">Boorus only</option>
+        <option value="tubes">Tubes only</option>
         <option value="real">Leaks / real only</option>
-        <option value="video">Video providers</option>
+        <option value="video">Lustpress API</option>
       </select>
-      <input id="query" placeholder="tags, e.g. rape animated" enterkeyhint="search" aria-label="Search tags">
+      <input id="query" placeholder="tags or a title" enterkeyhint="search" aria-label="Search">
       <button class="primary fix" onclick="runSearch()">Search</button>
     </div>
 
@@ -110,7 +111,6 @@ details .body{padding:0 13px 13px}
         <option value="1">Quick - 1 page</option>
         <option value="3" selected>Deep - 3 pages</option>
         <option value="5">Archive - 5 pages</option>
-        <option value="10">Binge - 10 pages</option>
       </select>
       <select id="rating" class="fix" style="flex:0 0 118px" onchange="applyFilter()" aria-label="Rating"></select>
       <select id="media" class="fix" style="flex:0 0 108px" onchange="applyFilter()" aria-label="Media type">
@@ -121,7 +121,7 @@ details .body{padding:0 13px 13px}
       <select id="sort" class="fix" style="flex:0 0 128px" onchange="applyFilter()" aria-label="Sort">
         <option value="recent">As returned</option>
         <option value="obscure">Obscure first</option>
-        <option value="score">Highest score</option>
+        <option value="score">Most viewed</option>
         <option value="random">Shuffle</option>
       </select>
     </div>
@@ -132,8 +132,9 @@ details .body{padding:0 13px 13px}
     <div class="line">
       <button onclick="nextBatch()" id="btnNext" class="ghost">Next batch</button>
       <button onclick="jumpPage()" class="ghost">Jump to page</button>
-      <input id="jump" type="number" min="1" max="10000" value="1" class="fix" style="flex:0 0 84px" aria-label="Page number">
+      <input id="jump" type="number" min="1" max="10000" value="1" class="fix" style="flex:0 0 80px" aria-label="Page">
       <button onclick="shufflePick()" class="ghost">Random pick</button>
+      <button onclick="resolveAll()" class="ghost" id="btnResolve">Extract streams</button>
     </div>
 
     <div class="line">
@@ -143,7 +144,7 @@ details .body{padding:0 13px 13px}
     </div>
 
     <div id="links" class="hidden">
-      <p class="note">Browser shortcuts. No API, nothing filtered. This is where you go when an API gives you nothing.</p>
+      <p class="note">Browser shortcuts. No API, nothing filtered.</p>
       <div id="linkGrid" class="grid"></div>
     </div>
 
@@ -153,40 +154,31 @@ details .body{padding:0 13px 13px}
   <section id="tab-library" class="hidden">
     <h2>Library <small id="count" class="pill"></small></h2>
     <p class="note">Private, on-device. Imported files are referenced, never copied.</p>
-
     <div class="line">
       <button class="primary" onclick="Native.importMedia()">Import media</button>
       <button class="ghost" onclick="addDialog.showModal()">Save a URL</button>
       <button class="ghost" onclick="Native.exportLibrary()">Export</button>
       <button class="ghost" onclick="Native.importLibrary()">Import</button>
     </div>
-
-    <input id="filter" placeholder="Filter by title, tags or notes" oninput="renderLibrary()" aria-label="Filter library">
+    <input id="filter" placeholder="Filter by title, tags or notes" oninput="renderLibrary()" aria-label="Filter">
     <div class="line">
       <select id="collection" onchange="renderLibrary()" aria-label="Collection"></select>
       <select id="libSource" onchange="renderLibrary()" aria-label="Source"></select>
     </div>
     <div class="line">
       <label class="chip" style="cursor:pointer">
-        <input id="dupesOnly" type="checkbox" style="width:auto;min-height:0;margin-right:6px" onchange="renderLibrary()">
-        Duplicate links only
+        <input id="dupesOnly" type="checkbox" style="width:auto;min-height:0;margin-right:6px" onchange="renderLibrary()"> Duplicates only
       </label>
       <label class="chip" style="cursor:pointer">
-        <input id="favOnly" type="checkbox" style="width:auto;min-height:0;margin-right:6px" onchange="renderLibrary()">
-        Favourites only
+        <input id="favOnly" type="checkbox" style="width:auto;min-height:0;margin-right:6px" onchange="renderLibrary()"> Favourites
       </label>
     </div>
-
     <div id="saved" class="empty">Nothing saved yet.</div>
   </section>
 
   <section id="tab-tags" class="hidden">
     <h2>Tag explorer</h2>
-    <p class="note">
-      Nothing here is a filter, these are starting points. Booru sites index niche content
-      far better than any tube site, which is why the dark / zoo / niche categories are first.
-      Tap a tag to search it, or long-press to append it to your current query.
-    </p>
+    <p class="note">Tap a tag to search it. Long-press to append it to your current query.</p>
     <div id="taxonomy"></div>
   </section>
 
@@ -195,38 +187,31 @@ details .body{padding:0 13px 13px}
     <p class="note">Enabled sources are searched together. Disabled ones still work via the browser links.</p>
     <div id="sourceList"></div>
 
-    <h2>Video provider API</h2>
-    <p class="note">Optional. The public Lustpress API shut down in March 2026, so point this at your own instance.</p>
+    <h2>Lustpress video API</h2>
+    <p class="note">Optional, only used by the "Lustpress API" source mode. The tubes work without it.</p>
     <input id="videoApi" placeholder="https://your-api.example">
     <div class="line"><button class="primary" onclick="saveVideoApi()">Save</button></div>
 
     <h2>Credentials</h2>
-    <p class="note">Gelbooru works anonymously at low volume; a key removes the cap.</p>
     <input id="gbKey" placeholder="Gelbooru api_key">
     <input id="gbUser" placeholder="Gelbooru user_id" style="margin-top:7px">
     <div class="line"><button class="primary" onclick="saveCreds()">Save</button></div>
 
     <h2>Media proxy</h2>
     <div class="row">
-      <div>
-        <strong>Route downloads through the local proxy</strong>
-        <p class="note" style="margin:2px 0">More reliable on hotlink-protected CDNs, but the app must stay alive for large files.</p>
-      </div>
+      <div><strong>Route downloads through the local proxy</strong>
+        <p class="note" style="margin:2px 0">More reliable on hotlink-protected CDNs, but the app must stay alive.</p></div>
       <button class="tg" id="tgProxy" onclick="flipProxy()"><i></i></button>
     </div>
     <div class="row">
-      <div><strong>Clear media cache</strong><p class="note" style="margin:2px 0">Deletes cached previews only, never the library.</p></div>
+      <div><strong>Clear media cache</strong><p class="note" style="margin:2px 0">Cached previews only.</p></div>
       <button class="ghost" onclick="Native.clearCache()">Clear</button>
     </div>
 
     <h2>Privacy</h2>
-    <p class="note">
-      No accounts, no cloud sync, no analytics. Library lives in on-device SQLite; uninstalling removes it.
-      The media proxy binds to 127.0.0.1 only. Nothing is downloaded unless you ask.
-    </p>
-
+    <p class="note">No accounts, no cloud sync, no analytics. Proxy binds to 127.0.0.1 only.</p>
     <h2>About</h2>
-    <p class="note">Velvet Index 1.0. Local-first catalogue for finding niche content that mainstream tube sites do not tag.</p>
+    <p class="note">Velvet Index 1.1 - boorus, scraped tubes, leak archives.</p>
   </section>
 </main>
 
@@ -244,14 +229,15 @@ details .body{padding:0 13px 13px}
   <div class="line">
     <button onclick="viewerSource()">Source</button>
     <button onclick="viewerDownload()">Download</button>
-    <button onclick="viewerSave()">Save to library</button>
+    <button onclick="viewerResolve()">Re-extract</button>
+    <button onclick="viewerSave()">Save</button>
     <button class="ghost" onclick="viewer.close()">Close</button>
   </div>
 </dialog>
 
 <dialog id="addDialog">
   <h3>Save a URL</h3>
-  <label>HTTPS URL</label><input id="addUrl" placeholder="https://...">
+  <label>URL</label><input id="addUrl" placeholder="https://...">
   <label>Title</label><input id="addTitle">
   <label>Tags</label><input id="addTags">
   <div class="line">
@@ -300,12 +286,10 @@ function note(msg) {
 window.onStatus = note;
 
 const S = {
-  port: 0,
-  results: [], shown: [], items: [], filtered: [],
+  port: 0, results: [], shown: [], items: [], filtered: [],
   page: 0, serial: 0, inflight: 0, found: 0, failed: 0,
-  ended: false, query: '',
-  viewing: null, editId: 0, editFav: false,
-  enabled: {}
+  ended: false, query: '', viewing: null, editId: 0, editFav: false,
+  enabled: {}, cursors: {}
 };
 
 let seq = 0;
@@ -313,25 +297,32 @@ const waits = new Map();
 
 window.onFetch = (id, status, headers, body) => {
   const w = waits.get(id); if (!w) return; waits.delete(id);
-  let h = {}; try { h = JSON.parse(headers); } catch (e) {}
-  w.resolve({ status: Number(status), headers: h, body });
+  w.resolve({ status: Number(status), headers: {}, body: body });
 };
 window.onFetchError = (id, msg) => {
   const w = waits.get(id); if (!w) return; waits.delete(id);
   w.reject(new Error(msg || 'network error'));
 };
 
-function http(url, headers, timeout) {
-  timeout = timeout || 26000;
-  const id = 'q' + (++seq);
+function call(id, fire, timeout) {
   return new Promise((resolve, reject) => {
-    waits.set(id, { resolve, reject });
-    try { Native.fetch(id, url, JSON.stringify(headers || {})); }
-    catch (e) { waits.delete(id); reject(e); return; }
+    waits.set(id, { resolve: resolve, reject: reject });
+    try { fire(); } catch (e) { waits.delete(id); reject(e); return; }
     setTimeout(() => {
       if (waits.has(id)) { waits.delete(id); try { Native.abort(id); } catch (e) {} reject(new Error('timeout')); }
-    }, timeout);
+    }, timeout || 28000);
   });
+}
+
+function http(url, headers, timeout) {
+  const id = 'q' + (++seq);
+  return call(id, () => Native.fetch(id, url, JSON.stringify(headers || {})), timeout);
+}
+
+function scrape(url, chunk, find, max, headers) {
+  const id = 's' + (++seq);
+  return call(id, () => Native.scrape(id, url, JSON.stringify(headers || SCRAPE_HEADERS),
+                                      chunk || '', find || '', max || 60), 32000);
 }
 
 function proxied(url, referer) {
@@ -351,9 +342,9 @@ function mediaFallback(node) {
 function normRating(r) {
   if (!r) return '';
   r = String(r).toLowerCase();
-  if (r.startsWith('e') || r === 'explicit') return 'explicit';
-  if (r.startsWith('q') || r === 'questionable') return 'questionable';
-  if (r.startsWith('s') || r === 'safe' || r === 'general') return 'safe';
+  if (r.charAt(0) === 'e' || r === 'explicit') return 'explicit';
+  if (r.charAt(0) === 'q' || r === 'questionable') return 'questionable';
+  if (r.charAt(0) === 's' || r === 'safe' || r === 'general') return 'safe';
   return '';
 }
 
@@ -363,16 +354,12 @@ function normalise(row, src) {
   const referer = origin(page) || origin(file);
   const preview = row.preview_url || (row.media_type === 'image' ? file : '');
   return {
-    source: src.label,
-    source_id: src.id,
-    page_url: page,
-    file_url: file,
-    preview_url: preview,
+    source: src.label, source_id: src.id,
+    page_url: page, file_url: file, preview_url: preview,
     _referer: referer,
+    resolvable: !!src.resolve,
     title: row.title || 'Untitled',
-    tags: row.tags || '',
-    notes: '',
-    collection: '',
+    tags: row.tags || '', notes: row.notes || '', collection: '',
     media_type: row.media_type || (/\.(mp4|webm|mov|mkv)(\?|$)/i.test(file) ? 'video' : 'image'),
     rating: normRating(row.rating),
     score: Number(row.score) || 0
@@ -383,6 +370,7 @@ function activeSources() {
   const sel = el('source').value;
   let list = SOURCES.filter(s => S.enabled[s.id] !== false);
   if (sel === 'booru') list = list.filter(s => s.group === 'Booru');
+  else if (sel === 'tubes') list = list.filter(s => s.group === 'Tubes');
   else if (sel === 'real') list = list.filter(s => s.group === 'Real / Leaks');
   else if (sel === 'video') return [];
   else if (sel !== 'all') list = list.filter(s => s.id === sel);
@@ -390,23 +378,40 @@ function activeSources() {
 }
 
 async function searchOne(src, query, page, serial) {
-  let url, headers = src.headers || {};
-  if (src.kind === 'video') {
-    const base = pref('video_api');
-    if (!base) throw new Error('no video API configured');
-    url = base.replace(/\/+$/, '') + '/' + src.id + '/search?key=' + uri(query) + '&page=' + (page + 1);
+  let res, rows = [];
+
+  if (src.kind === 'html') {
+    res = await scrape(src.url(query, page), src.chunk, '', 90, src.headers);
+    if (serial !== S.serial) return;
+    if (res.status !== 200) throw new Error(src.label + ' HTTP ' + res.status);
+    try { rows = src.parseHtml(res.body) || []; } catch (e) { rows = []; }
+    if (!rows.length && src.fallbackUrl) {
+      const r2 = await scrape(src.fallbackUrl(query, page), src.chunk, '', 90, src.headers);
+      if (r2.status === 200) { try { rows = src.parseHtml(r2.body) || []; } catch (e) {} }
+    }
   } else {
-    url = src.url(query, page);
+    const url = src.kind === 'video'
+      ? pref('video_api').replace(/\/+$/, '') + '/' + src.id + '/search?key=' + uri(query) + '&page=' + (page + 1)
+      : src.url(query, page, S.cursors[src.id] || '');
+    if (src.kind === 'video' && !pref('video_api')) throw new Error('no video API set');
+    res = await http(url, src.headers);
+    if (serial !== S.serial) return;
+    if (res.status === 429) throw new Error(src.label + ' rate limited');
+    if (res.status !== 200) throw new Error(src.label + ' HTTP ' + res.status);
+    let json;
+    try { json = JSON.parse(res.body); } catch (e) { throw new Error(src.label + ' bad JSON'); }
+    try { rows = src.parse(json) || []; } catch (e) { rows = []; }
+    if (rows && rows._cursor !== undefined) S.cursors[src.id] = rows._cursor;
+    if (!rows.length && src.fallbackUrl) {
+      const r2 = await http(src.fallbackUrl(query, page), src.headers);
+      if (r2.status === 200) {
+        try { const j2 = JSON.parse(r2.body); rows = src.parse(j2) || []; } catch (e) {}
+      }
+    }
   }
-  const res = await http(url, headers);
+
   if (serial !== S.serial) return;
-  if (res.status === 429) throw new Error(src.label + ' rate limited');
-  if (res.status !== 200) throw new Error(src.label + ' HTTP ' + res.status);
-  let json;
-  try { json = JSON.parse(res.body); } catch (e) { throw new Error(src.label + ' bad JSON'); }
-  if (serial !== S.serial) return;
-  const rows = (src.parse(json) || []).map(r => normalise(r, src));
-  addResults(rows);
+  if (rows.length) addResults(rows.map(r => normalise(r, src)));
 }
 
 function addResults(rows) {
@@ -433,8 +438,7 @@ function dedupe(arr) {
   return arr.filter(x => {
     const k = canonical(x.page_url || x.file_url);
     if (!k || seen.has(k)) return false;
-    seen.add(k);
-    return true;
+    seen.add(k); return true;
   });
 }
 
@@ -442,7 +446,7 @@ function progress() {
   const total = S.found + S.failed;
   el('bar').style.width = S.inflight ? Math.min(95, 8 + total) + '%' : (total ? '100%' : '0%');
   let txt;
-  if (S.inflight) txt = 'Fetching - ' + S.inflight + ' request(s) in flight - ' + S.results.length + ' unique so far';
+  if (S.inflight) txt = 'Fetching - ' + S.inflight + ' in flight - ' + S.results.length + ' unique';
   else if (S.ended) txt = 'Exhausted at page ' + (S.page + 1) + ' - ' + S.results.length + ' results';
   else txt = S.results.length + ' results - next page ' + (S.page + 1);
   if (S.failed) txt += ' - ' + S.failed + ' failed';
@@ -455,8 +459,7 @@ function settle() {
   S.inflight = Math.max(0, S.inflight - 1);
   if (!S.inflight) {
     if (!S.found && !S.failed) S.ended = true;
-    else if (!S.found && S.failed) note('Every source failed - check Settings or your connection');
-    if (S.ended && S.results.length) note('Reached the end of available results');
+    else if (!S.found && S.failed) note('Every source failed - check Settings');
   }
   progress();
 }
@@ -464,26 +467,18 @@ function settle() {
 async function runBatch(query, page, depth) {
   const serial = ++S.serial;
   const srcs = activeSources();
-  if (!srcs.length) {
-    if (el('source').value === 'video' && !pref('video_api')) return note('Set a video API in Settings first');
-    return note('No sources enabled');
-  }
+  if (!srcs.length) return note('No sources selected');
   const jobs = [];
-  for (let p = page; p < page + depth; p++)
-    for (const s of srcs) jobs.push({ s: s, p: p });
-
-  S.inflight = jobs.length;
-  S.found = 0; S.failed = 0;
+  for (let p = page; p < page + depth; p++) for (const s of srcs) jobs.push({ s: s, p: p });
+  S.inflight = jobs.length; S.found = 0; S.failed = 0;
   progress();
-
   await Promise.all(jobs.map(j => searchOne(j.s, query, j.p, serial)
     .catch(err => { if (serial === S.serial) { S.failed++; note(String(err.message || err)); } })
     .then(settle)));
-
   if (serial !== S.serial) return;
   if (!S.results.length) {
     el('results').className = 'empty';
-    el('results').textContent = 'No results. Try a broader tag, another source, or the browser links below.';
+    el('results').textContent = 'No results. Try another source or the browser links below.';
   }
   S.page = page + depth;
   progress();
@@ -494,6 +489,7 @@ function runSearch() {
   const q = el('query').value.trim();
   if (!q) return note('Enter a tag or phrase');
   S.query = q; S.page = 0; S.results = []; S.ended = false; S.serial++;
+  S.cursors = {};
   el('results').className = 'empty';
   el('results').textContent = 'Searching ' + activeSources().length + ' source(s)...';
   runBatch(q, 0, Number(el('depth').value));
@@ -510,7 +506,7 @@ function jumpPage() {
   if (S.inflight) return note('Still fetching');
   if (!S.query) return note('Search first');
   const p = Number(el('jump').value);
-  if (!Number.isInteger(p) || p < 1 || p > 10000) return note('Page must be 1-10000');
+  if (!Number.isInteger(p) || p < 1 || p > 10000) return note('Page 1-10000');
   S.page = p - 1; S.ended = false;
   runBatch(S.query, S.page, Number(el('depth').value));
 }
@@ -529,21 +525,16 @@ function searchX() {
 function toggleLinks() { el('links').classList.toggle('hidden'); }
 
 function applyFilter() {
-  const rating = el('rating').value;
-  const media = el('media').value;
-  const sort = el('sort').value;
-
+  const rating = el('rating').value, media = el('media').value, sort = el('sort').value;
   let out = S.results.map((x, i) => Object.assign({}, x, { _i: i }));
   if (rating !== 'all') out = out.filter(x => x.rating === rating);
   if (media !== 'all') out = out.filter(x => x.media_type === media);
-
   if (sort === 'obscure') out.sort((a, b) => {
     const av = a.score > 0 ? a.score : Infinity, bv = b.score > 0 ? b.score : Infinity;
     return av - bv;
   });
   else if (sort === 'score') out.sort((a, b) => b.score - a.score);
   else if (sort === 'random') out.sort(() => Math.random() - 0.5);
-
   S.shown = out;
   renderCards('results', out, 'result');
 }
@@ -554,19 +545,18 @@ function cardsHtml(rows, kind) {
     const pv = proxied(x.preview_url, x._referer);
     const raw = x.preview_url || '';
     const isVid = x.media_type === 'video';
-    const ratingTag = x.rating ? '<span class="badge r">' + esc(x.rating[0].toUpperCase()) + '</span>' : '';
+    const ratingTag = x.rating ? '<span class="badge r">' + esc(x.rating.charAt(0).toUpperCase()) + '</span>' : '';
+    const playTag = isVid ? '<span class="badge play">' + (x.resolvable ? 'EXTRACT' : 'VIDEO') + '</span>' : '';
     const img = pv
       ? '<img loading="lazy" referrerpolicy="no-referrer" src="' + esc(pv) + '" data-raw="' + esc(raw)
         + '" onerror="mediaFallback(this)">'
       : '<span>No preview</span>';
-    return '<div class="card">'
-      + '<div class="pv">' + img
+    return '<div class="card"><div class="pv">' + img
       + '<span style="display:none;align-items:center;justify-content:center;text-align:center;padding:8px">Preview blocked - tap Open</span>'
-      + ratingTag + (isVid ? '<span class="badge">VIDEO</span>' : '')
-      + '</div>'
+      + ratingTag + playTag + '</div>'
       + '<div class="dt"><strong>' + esc(x.title) + '</strong>'
-      + '<p>' + esc(x.source || '') + (x.collection ? ' - ' + esc(x.collection) : '')
-      + (x.tags ? ' - ' + esc(String(x.tags).slice(0, 90)) : '') + '</p>'
+      + '<p>' + esc(x.source || '') + (x.notes ? ' - ' + esc(x.notes) : '')
+      + (x.tags ? ' - ' + esc(String(x.tags).slice(0, 80)) : '') + '</p>'
       + '<div class="acts">'
       + '<button onclick="openViewerIdx(\'' + kind + '\',' + idx + ')">Open</button>'
       + (kind === 'result'
@@ -587,99 +577,184 @@ function renderCards(where, rows, kind) {
   t.innerHTML = cardsHtml(rows, kind);
 }
 
+/* -------------------------------------------------------- stream resolver */
+
+const resolvedCache = new Map();
+
+async function resolveStream(x, force) {
+  if (x.file_url && !force) return x.file_url;
+  const key = x.source_id + '|' + x.page_url;
+  if (!force && resolvedCache.has(key)) return resolvedCache.get(key);
+  const src = SOURCES.find(s => s.id === x.source_id);
+  if (!src || !src.resolve) return '';
+
+  let target = x.page_url;
+  if (src.embedUrl) {
+    const e = src.embedUrl(x.page_url);
+    if (e && e.indexOf('http') === 0) target = e;
+  }
+
+  let res = await scrape(target, '', '', 50, src.headers);
+  if ((res.status !== 200 || !res.body) && target !== x.page_url) {
+    res = await scrape(x.page_url, '', '', 50, src.headers);
+  }
+  if (res.status !== 200) throw new Error('HTTP ' + res.status);
+  const url = src.resolve(res.body);
+  if (url) resolvedCache.set(key, url);
+  return url;
+}
+
+function mediaHtml(x) {
+  const ref = x._referer || origin(x.page_url);
+  const direct = /^https?:/i.test(x.file_url || '') ? proxied(x.file_url, ref) : '';
+  const pic = proxied(x.preview_url, ref);
+  if (direct && x.media_type === 'video') {
+    return '<video controls autoplay playsinline preload="metadata" src="' + esc(direct)
+         + '" data-raw="' + esc(x.file_url) + '"' + (pic ? ' poster="' + esc(pic) + '"' : '') + '></video>';
+  }
+  if (direct) {
+    return '<img alt="media" referrerpolicy="no-referrer" src="' + esc(direct)
+         + '" data-raw="' + esc(x.file_url) + '" onerror="mediaFallback(this)">';
+  }
+  if (pic) return '<img alt="preview" referrerpolicy="no-referrer" src="' + esc(pic) + '">';
+  return '<p class="note">No preview available from this source.</p>';
+}
+
 function openViewerIdx(kind, idx) {
   const x = kind === 'result' ? S.results[idx] : S.filtered[idx];
   if (x) openViewer(x);
 }
 
-function openViewer(x) {
+async function openViewer(x) {
   S.viewing = x;
-
   if ((x.file_url || '').indexOf('content://') === 0) { Native.viewLocal(x.file_url); return; }
 
   el('viewerTitle').textContent = x.title || 'Media';
-  const ref = x._referer || origin(x.page_url);
-  const direct = /^https?:/i.test(x.file_url || '') ? proxied(x.file_url, ref) : '';
-  const pic = proxied(x.preview_url, ref);
-  const isVid = x.media_type === 'video';
+  const needs = !x.file_url && x.media_type === 'video' && x.resolvable;
 
-  let html = '';
-  if (direct && isVid) {
-    html = '<video controls autoplay playsinline preload="metadata" src="' + esc(direct)
-         + '" data-raw="' + esc(x.file_url) + '"'
-         + (pic ? ' poster="' + esc(pic) + '"' : '') + '></video>';
-  } else if (direct) {
-    html = '<img alt="media" referrerpolicy="no-referrer" src="' + esc(direct)
-         + '" data-raw="' + esc(x.file_url) + '" onerror="mediaFallback(this)">';
-  } else if (pic) {
-    html = '<img alt="preview" referrerpolicy="no-referrer" src="' + esc(pic) + '">';
-  } else {
-    html = '<p class="note">No preview available from this source.</p>';
-  }
-
-  el('viewerMedia').innerHTML = html;
-  el('viewerHint').textContent = direct
-    ? (isVid ? 'Direct stream supplied by the source. The proxy is handling Referer and User-Agent.'
-             : 'Full-resolution media supplied by the source.')
-    : (isVid ? 'Catalogue preview only - the source gave no playable URL.'
-             : 'Preview only - no direct media URL.');
-
+  el('viewerMedia').innerHTML = needs
+    ? '<p class="note">Extracting stream from ' + esc(x.source) + '...</p>'
+    : mediaHtml(x);
+  el('viewerHint').textContent = needs ? 'Working...' : hintFor(x);
   el('viewer').showModal();
+
+  if (needs) {
+    try {
+      const url = await resolveStream(x);
+      if (!url) {
+        el('viewerMedia').innerHTML = '<p class="note">No direct stream found. Use Source.</p>';
+        el('viewerHint').textContent = 'Catalogue-only result.';
+        return;
+      }
+      x.file_url = url;
+      el('viewerMedia').innerHTML = mediaHtml(x);
+      el('viewerHint').textContent = 'Stream extracted from the page. Proxy is handling Referer.';
+    } catch (e) {
+      el('viewerMedia').innerHTML = '<p class="note">Extract failed: ' + esc(String(e.message || e)) + '</p>';
+      el('viewerHint').textContent = 'Try Re-extract or Source.';
+    }
+  }
+}
+
+function hintFor(x) {
+  const direct = /^https?:/i.test(x.file_url || '');
+  if (direct) return x.media_type === 'video'
+    ? 'Direct stream from the source. Proxy is handling Referer and User-Agent.'
+    : 'Full-resolution media from the source.';
+  return 'Preview only - no direct media URL.';
 }
 
 function viewerSource() {
   const x = S.viewing;
   if (x && /^https?:/i.test(x.page_url || '')) Native.open(x.page_url);
 }
-function viewerDownload() {
+
+async function viewerDownload() {
   const x = S.viewing;
   if (!x) return;
+  if (!x.file_url && x.resolvable) {
+    note('Extracting...');
+    try { const u = await resolveStream(x); if (u) x.file_url = u; } catch (e) {}
+  }
   if (!/^https?:/i.test(x.file_url || '')) return note('No direct media URL from this source');
   Native.download(x.file_url, x._referer || origin(x.page_url), x.title);
 }
+
+async function viewerResolve() {
+  const x = S.viewing;
+  if (!x) return;
+  el('viewerMedia').innerHTML = '<p class="note">Re-extracting...</p>';
+  try {
+    const u = await resolveStream(x, true);
+    if (!u) { el('viewerMedia').innerHTML = '<p class="note">Still nothing.</p>'; return; }
+    x.file_url = u;
+    el('viewerMedia').innerHTML = mediaHtml(x);
+    el('viewerHint').textContent = 'Re-extracted.';
+  } catch (e) {
+    el('viewerMedia').innerHTML = '<p class="note">' + esc(String(e.message || e)) + '</p>';
+  }
+}
+
 function viewerSave() { if (S.viewing) Native.save(JSON.stringify(S.viewing)); }
+
+/* --------------------------------------------------- bulk stream extraction */
+
+let resolving = false;
+
+async function resolveAll() {
+  if (resolving) return;
+  const targets = S.shown.filter(x => x.media_type === 'video' && x.resolvable && !x.file_url).slice(0, 60);
+  if (!targets.length) return note('Nothing to extract');
+  resolving = true;
+  let done = 0, ok = 0;
+
+  const worker = async () => {
+    while (targets.length) {
+      const x = targets.shift();
+      try { const u = await resolveStream(x); if (u) { x.file_url = u; ok++; } } catch (e) {}
+      done++;
+      el('btnResolve').textContent = 'Extracting ' + done + '/' + (done + targets.length);
+      el('progress').textContent = 'Extracted ' + ok + ' stream(s)';
+    }
+  };
+
+  await Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);
+  resolving = false;
+  el('btnResolve').textContent = 'Extract streams';
+  note('Extracted ' + ok + ' of ' + done + ' streams');
+  applyFilter();
+}
+
+/* ----------------------------------------------------------------- library */
 
 window.onLibrary = json => {
   try { S.items = JSON.parse(json); } catch (e) { return; }
   el('count').textContent = S.items.length + ' items';
-
   const colls = uniq(S.items.map(x => x.collection || 'Unsorted')).sort();
   const cur = el('collection').value;
   el('collection').innerHTML = '<option value="">All collections</option>'
     + colls.map(c => '<option>' + esc(c) + '</option>').join('');
   el('collection').value = cur;
   el('collList').innerHTML = colls.map(c => '<option value="' + esc(c) + '">').join('');
-
   const srcs = uniq(S.items.map(x => x.source || 'Other')).sort();
   const cur2 = el('libSource').value;
   el('libSource').innerHTML = '<option value="">All sources</option>'
     + srcs.map(c => '<option>' + esc(c) + '</option>').join('');
   el('libSource').value = cur2;
-
   renderLibrary();
 };
 
 function renderLibrary() {
   const q = el('filter').value.toLowerCase();
-  const coll = el('collection').value;
-  const src = el('libSource').value;
-  const dupes = el('dupesOnly').checked;
-  const favs = el('favOnly').checked;
-
+  const coll = el('collection').value, src = el('libSource').value;
+  const dupes = el('dupesOnly').checked, favs = el('favOnly').checked;
   const counts = {};
-  S.items.forEach(x => {
-    const k = canonical(x.page_url || x.file_url);
-    if (k) counts[k] = (counts[k] || 0) + 1;
-  });
-
+  S.items.forEach(x => { const k = canonical(x.page_url || x.file_url); if (k) counts[k] = (counts[k] || 0) + 1; });
   const rows = S.items.filter(x =>
-    (!coll || x.collection === coll) &&
-    (!src || x.source === src) &&
+    (!coll || x.collection === coll) && (!src || x.source === src) &&
     (!favs || Number(x.fav) === 1) &&
     (!dupes || counts[canonical(x.page_url || x.file_url)] > 1) &&
-    (!q || [x.title, x.tags, x.notes, x.collection].join(' ').toLowerCase().indexOf(q) >= 0)
-  );
-
+    (!q || [x.title, x.tags, x.notes, x.collection].join(' ').toLowerCase().indexOf(q) >= 0));
   S.filtered = rows;
   renderCards('saved', rows, 'library');
 }
@@ -689,8 +764,7 @@ function saveIdx(i) { if (S.results[i]) Native.save(JSON.stringify(S.results[i])
 function editIdx(i) {
   const x = S.filtered[i];
   if (!x) return;
-  S.editId = Number(x.id);
-  S.editFav = Number(x.fav) === 1;
+  S.editId = Number(x.id); S.editFav = Number(x.fav) === 1;
   el('edTitle').value = x.title || '';
   el('edCollection').value = x.collection || '';
   el('edTags').value = x.tags || '';
@@ -700,13 +774,8 @@ function editIdx(i) {
 }
 
 function saveEdit() {
-  Native.update(JSON.stringify({
-    id: S.editId,
-    title: el('edTitle').value,
-    collection: el('edCollection').value,
-    tags: el('edTags').value,
-    notes: el('edNotes').value
-  }));
+  Native.update(JSON.stringify({ id: S.editId, title: el('edTitle').value,
+    collection: el('edCollection').value, tags: el('edTags').value, notes: el('edNotes').value }));
   el('editDialog').close();
 }
 
@@ -720,12 +789,10 @@ function deleteItem() { Native.remove(S.editId); el('editDialog').close(); }
 
 function addManual() {
   const u = el('addUrl').value.trim();
-  if (!/^https?:\/\/[^\s]+/i.test(u)) return note('Enter a valid http(s) URL');
-  Native.save(JSON.stringify({
-    source: 'Manual', page_url: u, file_url: '', preview_url: '',
-    title: el('addTitle').value || 'Saved page',
-    tags: el('addTags').value, collection: 'Unsorted', media_type: 'image'
-  }));
+  if (!/^https?:\/\/[^\s]+/i.test(u)) return note('Enter a valid URL');
+  Native.save(JSON.stringify({ source: 'Manual', page_url: u, file_url: '', preview_url: '',
+    title: el('addTitle').value || 'Saved page', tags: el('addTags').value,
+    collection: 'Unsorted', media_type: 'image' }));
   el('addDialog').close();
   el('addUrl').value = ''; el('addTitle').value = ''; el('addTags').value = '';
 }
@@ -743,8 +810,7 @@ function tab(name) {
 function renderTaxonomy() {
   el('taxonomy').innerHTML = TAXONOMY.map((cat, ci) =>
     '<details' + (cat.open ? ' open' : '') + '><summary>' + esc(cat.label) + '</summary>'
-    + '<div class="body">'
-    + (cat.note ? '<p class="note">' + esc(cat.note) + '</p>' : '')
+    + '<div class="body">' + (cat.note ? '<p class="note">' + esc(cat.note) + '</p>' : '')
     + '<div class="chips">'
     + cat.tags.map(t => '<button class="chip" onclick="useTag(' + ci + ',\'' + esc(t) + '\',false)" '
         + 'oncontextmenu="useTag(' + ci + ',\'' + esc(t) + '\',true);return false">' + esc(t) + '</button>').join('')
@@ -757,11 +823,7 @@ function useTag(ci, tag, append) {
     const parts = q.value.trim().split(/\s+/);
     q.value = parts.indexOf(tag) >= 0 ? parts.filter(p => p !== tag).join(' ') : q.value.trim() + ' ' + tag;
     note('Query: ' + q.value);
-  } else {
-    q.value = tag;
-    tab('discover');
-    runSearch();
-  }
+  } else { q.value = tag; tab('discover'); runSearch(); }
 }
 
 function loadSettings() {
@@ -791,9 +853,9 @@ function flipProxy() {
 
 function saveVideoApi() {
   const v = el('videoApi').value.trim();
-  if (v && !/^https:\/\/[^\s]+/i.test(v)) return note('Must be an https URL');
+  if (v && !/^https:\/\/[^\s]+/i.test(v)) return note('Must be https');
   Native.setPref('video_api', v.replace(/\/+$/, ''));
-  note(v ? 'Video API saved' : 'Video API cleared');
+  note(v ? 'Saved' : 'Cleared');
 }
 
 function saveCreds() {
@@ -805,7 +867,7 @@ function saveCreds() {
 function renderLinks() {
   el('linkGrid').innerHTML = LINK_SOURCES.map((l, i) =>
     '<button class="ghost" style="text-align:left;min-height:62px;font-size:12px" '
-    + 'onclick="openLink(' + i + ')">' + esc(l.label) + ' &nearr;</button>').join('');
+    + 'onclick="openLink(' + i + ')">' + esc(l.label) + '</button>').join('');
 }
 function openLink(i) {
   const q = el('query').value.trim() || S.query;
@@ -825,22 +887,15 @@ window.handleBack = () => {
 
 (function boot() {
   try { S.port = Native.proxyPort(); } catch (e) { S.port = 0; }
-
   SOURCES.forEach(s => { S.enabled[s.id] = Native.getFlag('src_' + s.id, s.enabled !== false); });
-
   el('rating').innerHTML = RATINGS.map(r => '<option value="' + r.id + '">' + esc(r.label) + '</option>').join('');
-
   const extra = VIDEO_SOURCES.map(v => '<option value="' + v.id + '">' + esc(v.label) + '</option>').join('');
   el('source').innerHTML = el('source').innerHTML + extra;
-
   renderTaxonomy();
   renderLinks();
   progress();
-
   el('query').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
-
-  if (!S.port) note('Media proxy unavailable - previews will load direct');
-
+  if (!S.port) note('Media proxy unavailable - previews load direct');
   Native.list();
 })();
 </script>
