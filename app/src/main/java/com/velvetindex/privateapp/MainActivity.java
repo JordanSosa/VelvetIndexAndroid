@@ -1,75 +1,693 @@
 package com.velvetindex.privateapp;
+
+import android.Manifest;
 import android.app.Activity;
-import android.os.Bundle;
-import android.content.Intent;
-import android.content.ContentValues;
-import android.database.Cursor;
-import android.database.sqlite.*;
-import android.net.Uri;
-import android.webkit.*;
-import android.graphics.Color;
-import android.os.Build;
-import android.view.WindowInsets;
-import android.widget.FrameLayout;
-import android.view.ViewGroup;
 import android.app.DownloadManager;
+import android.content.ActivityNotFoundException;
+import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.graphics.Color;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
 import android.os.Environment;
-import android.webkit.MimeTypeMap;
-import org.json.*;
-import java.net.*;
-import java.io.*;
-import java.util.concurrent.*;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.OpenableColumns;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.webkit.ConsoleMessage;
+import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.widget.Toast;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
- WebView web; DB db; ExecutorService work=Executors.newSingleThreadExecutor(); static final int PICK=42;byte[] pendingExport;
- void send(String fn,String data){runOnUiThread(()->web.evaluateJavascript("window."+fn+"("+JSONObject.quote(data)+")",null));}
- void browser(String s){try{Uri u=Uri.parse(s);if("https".equals(u.getScheme()))startActivity(new Intent(Intent.ACTION_VIEW,u));}catch(Exception ignored){}}
- @Override public void onCreate(Bundle b){super.onCreate(b);db=new DB();web=new WebView(this);web.setBackgroundColor(Color.rgb(16,14,22));web.getSettings().setJavaScriptEnabled(true);web.getSettings().setLoadsImagesAutomatically(true);web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);web.addJavascriptInterface(new Bridge(),"Native");web.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView w,WebResourceRequest r){browser(r.getUrl().toString());return true;}});FrameLayout root=new FrameLayout(this);root.setBackgroundColor(Color.rgb(16,14,22));FrameLayout.LayoutParams contentParams=new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT);root.addView(web,contentParams);setContentView(root);if(Build.VERSION.SDK_INT>=35){root.setOnApplyWindowInsetsListener((view,insets)->{int bottom=insets.getInsets(WindowInsets.Type.navigationBars()).bottom;int top=insets.getInsets(WindowInsets.Type.statusBars()).top;FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)web.getLayoutParams();if(lp.bottomMargin!=bottom||lp.topMargin!=top){lp.bottomMargin=bottom;lp.topMargin=top;web.setLayoutParams(lp);}return insets;});root.requestApplyInsets();}web.loadUrl("file:///android_asset/index.html");}
- class Bridge{
- @JavascriptInterface public void list(){work.execute(()->send("onLibrary",db.all().toString()));}
- @JavascriptInterface public void save(String s){work.execute(()->{try{db.save(new JSONObject(s));send("onLibrary",db.all().toString());send("onStatus","Saved");}catch(Exception e){send("onStatus","Save failed");}});}
- @JavascriptInterface public void update(String s){work.execute(()->{try{db.update(new JSONObject(s));send("onLibrary",db.all().toString());}catch(Exception ignored){}});}
- @JavascriptInterface public void delete(int id){work.execute(()->{db.getWritableDatabase().delete("items","id=?",new String[]{""+id});send("onLibrary",db.all().toString());});}
- @JavascriptInterface public void open(String s){runOnUiThread(()->browser(s));}
- @JavascriptInterface public void importMedia(){runOnUiThread(()->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("*/*");i.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/*","video/*"});i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,PICK);});}
- @JavascriptInterface public void viewLocal(String uri){runOnUiThread(()->{try{Uri u=Uri.parse(uri);if(!"content".equals(u.getScheme()))return;Intent i=new Intent(Intent.ACTION_VIEW);i.setDataAndType(u,getContentResolver().getType(u));i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(i);}catch(Exception e){send("onStatus","No compatible viewer installed");}});}
- @JavascriptInterface public void download(String url){runOnUiThread(()->{try{Uri u=Uri.parse(url);if(!"https".equals(u.getScheme()))throw new Exception();String ext=MimeTypeMap.getFileExtensionFromUrl(url);if(!ext.matches("(?i)jpg|jpeg|png|gif|webp|mp4|webm"))throw new Exception();DownloadManager.Request req=new DownloadManager.Request(u);req.setTitle("Velvet Index media");req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,"VelvetIndex_"+System.currentTimeMillis()+"."+ext);((DownloadManager)getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(req);send("onStatus","Download queued");}catch(Exception e){send("onStatus","Download unavailable for this URL");}});}
- @JavascriptInterface public void searchVideo(String terms,int page,String provider){work.execute(()->{HttpURLConnection c=null;try{
- String[] allowed={"pornhub","xvideos","xhamster","xnxx","redtube","youporn","eporner","txxx"};
- boolean ok=false;for(String item:allowed)if(item.equals(provider))ok=true;
- if(!ok)throw new Exception("Unsupported source");
- String base=getPreferences(Context.MODE_PRIVATE).getString("video_api","");
- Uri baseUri=Uri.parse(base);
- if(!"https".equals(baseUri.getScheme())||baseUri.getHost()==null||baseUri.getEncodedAuthority().contains("@")||baseUri.getQuery()!=null)throw new Exception("Configure an HTTPS service");
- String endpoint=base.replaceAll("/+$","")+"/"+provider+"/search?key="+URLEncoder.encode(terms,"UTF-8")+"&page="+Math.max(1,page+1);
- c=(HttpURLConnection)new URL(endpoint).openConnection();c.setConnectTimeout(12000);c.setReadTimeout(20000);c.setRequestProperty("Accept","application/json");c.setRequestProperty("User-Agent","VelvetIndex/0.6");
- if(c.getResponseCode()!=200)throw new Exception("HTTP "+c.getResponseCode());
- ByteArrayOutputStream bytes=new ByteArrayOutputStream();try(InputStream in=c.getInputStream()){byte[] buf=new byte[4096];int n;while((n=in.read(buf))>0&&bytes.size()<3000000)bytes.write(buf,0,n);}
- JSONObject raw=new JSONObject(bytes.toString("UTF-8"));Object data=raw.opt("data");JSONArray rows=data instanceof JSONArray?(JSONArray)data:null;
- if(rows==null&&data instanceof JSONObject){JSONObject obj=(JSONObject)data;for(String key:new String[]{"videos","results","items","posts","data"})if(obj.optJSONArray(key)!=null){rows=obj.optJSONArray(key);break;}}
- if(rows==null)rows=raw.optJSONArray("results");JSONArray out=new JSONArray();
- if(rows!=null)for(int i=0;i<rows.length();i++){JSONObject item=rows.optJSONObject(i);if(item==null)continue;
- String link=item.optString("link",item.optString("url"));if(!link.startsWith("https://"))continue;
- JSONObject x=new JSONObject();x.put("source",provider);x.put("page_url",link);String direct=item.optString("direct_media_url",item.optString("media_url",""));x.put("file_url",direct.startsWith("https://")&&direct.matches("(?i).*\\\\.(mp4|webm|jpg|jpeg|png|gif|webp)(\\\\?.*)?$")?direct:"");
- String thumb=item.optString("thumbnail",item.optString("thumb",item.optString("image",item.optString("poster"))));
- x.put("preview_url",thumb.startsWith("https://")?thumb:"");x.put("title",item.optString("title","Video"));if(item.has("views"))x.put("views",item.optLong("views",-1));else if(item.has("view_count"))x.put("views",item.optLong("view_count",-1));x.put("media_type","video");x.put("tags",item.optString("tags",""));x.put("notes","Provider metadata only; open publisher for playback");out.put(x);
- }send("onSearch",out.toString());
- }catch(Exception e){send("onSearchError",provider+": "+e.getMessage());}finally{if(c!=null)c.disconnect();}});}
- @JavascriptInterface public void setVideoApi(String input){Uri u=Uri.parse(input.trim());if(!"https".equals(u.getScheme())||u.getHost()==null||u.getEncodedAuthority().contains("@")||u.getQuery()!=null){send("onStatus","Use an HTTPS API URL");return;}getPreferences(Context.MODE_PRIVATE).edit().putString("video_api",input.trim().replaceAll("/+$","")).apply();send("onStatus","Video API saved on device");}
- @JavascriptInterface public String getVideoApi(){return getPreferences(Context.MODE_PRIVATE).getString("video_api","");}
- @JavascriptInterface public void exportJson(String data){runOnUiThread(()->{try{if(!data.startsWith("data:application/json;base64,"))throw new Exception();byte[] bytes=android.util.Base64.decode(data.substring(data.indexOf(',')+1),android.util.Base64.DEFAULT);if(bytes.length>12000000)throw new Exception();Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/json");i.putExtra(Intent.EXTRA_TITLE,"VelvetIndex-library.json");pendingExport=bytes;startActivityForResult(i,77);}catch(Exception e){send("onStatus","Export could not start");}});}
- @JavascriptInterface public void search(String tags,int page,String source){work.execute(()->{HttpURLConnection c=null;try{boolean jav="apijav".equals(source),e="e621".equals(source),dan="danbooru".equals(source),gel="gelbooru".equals(source),kon="konachan".equals(source),yan="yandere".equals(source);String encoded=URLEncoder.encode(tags,"UTF-8");String endpoint=dan?"https://danbooru.donmai.us/posts.json?limit=60&page="+Math.max(1,page+1)+"&tags="+encoded:gel?"https://gelbooru.com/index.php?page=dapi&s=post&q=index&json=1&limit=60&pid="+Math.max(0,page)+"&tags="+encoded:kon||yan?"https://"+(kon?"konachan.com":"yande.re")+"/post.json?limit=60&page="+Math.max(1,page+1)+"&tags="+encoded:jav?"https://server.apijav.com/wp-json/myvideo/v1/posts?per_page=30&page="+Math.max(1,page+1)+"&search="+encoded:e?"https://e621.net/posts.json?limit=60&page="+Math.max(1,page+1)+"&tags="+encoded:"https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=60&pid="+Math.max(0,page)+"&tags="+encoded;c=(HttpURLConnection)new URL(endpoint).openConnection();c.setConnectTimeout(12000);c.setReadTimeout(15000);c.setRequestProperty("User-Agent","VelvetIndex/0.2 (private Android client; https://github.com/JordanSosa/VelvetIndexAndroid)");if(c.getResponseCode()!=200)throw new Exception();ByteArrayOutputStream bytes=new ByteArrayOutputStream();try(InputStream in=c.getInputStream()){byte[] buf=new byte[4096];int n;while((n=in.read(buf))>0&&bytes.size()<2000000)bytes.write(buf,0,n);}Object raw=new JSONTokener(bytes.toString("UTF-8")).nextValue();JSONArray out=new JSONArray();if((dan||kon||yan||gel)&&((raw instanceof JSONArray)||(raw instanceof JSONObject))){JSONArray posts=raw instanceof JSONArray?(JSONArray)raw:((JSONObject)raw).optJSONArray("post");if(posts!=null)for(int j=0;j<posts.length();j++){JSONObject p=posts.optJSONObject(j);if(p==null)continue;String id=p.optString("id");if(!id.matches("[0-9]+"))continue;JSONObject x=new JSONObject();String host=dan?"danbooru.donmai.us":gel?"gelbooru.com":kon?"konachan.com":"yande.re";String label=dan?"Danbooru":gel?"Gelbooru":kon?"Konachan":"yande.re";x.put("source",label);x.put("page_url",dan?"https://"+host+"/posts/"+id:gel?"https://"+host+"/index.php?page=post&s=view&id="+id:"https://"+host+"/post/show/"+id);x.put("file_url",p.optString("file_url",p.optString("large_file_url")));x.put("preview_url",p.optString("preview_file_url",p.optString("preview_url")));x.put("title",label+" #"+id);x.put("tags",p.optString("tag_string",p.optString("tags")));x.put("media_type",p.optString("file_ext",p.optString("file_url")).matches("(?is).*(mp4|webm).*")?"video":"image");out.put(x);}}else if(jav&&raw instanceof JSONArray){JSONArray posts=(JSONArray)raw;for(int j=0;j<posts.length();j++){JSONObject p=posts.optJSONObject(j);if(p==null)continue;JSONObject x=new JSONObject();String id=p.optString("id");if(!id.matches("[0-9]+"))continue;String code=p.optString("code");String slug=p.optString("slug");String dest="https://server.apijav.com/wp-json/myvideo/v1/posts/"+id;x.put("source","apiJAV catalogue");x.put("page_url",dest);x.put("file_url","");x.put("preview_url",p.optString("thumbnail"));x.put("title",p.optString("title",code.isEmpty()?"Video "+id:code));if(p.has("views"))x.put("views",p.optLong("views",-1));x.put("media_type","video");x.put("tags",p.optJSONArray("tags")==null?"":p.optJSONArray("tags").join(" "));x.put("notes","Catalogue ID: "+id+"; code: "+code+"; studio: "+p.optString("studio")+"; duration: "+p.optString("duration")+"; slug: "+slug);out.put(x);}}else if(e&&raw instanceof JSONObject){JSONArray posts=((JSONObject)raw).optJSONArray("posts");if(posts!=null)for(int j=0;j<posts.length();j++){JSONObject p=posts.optJSONObject(j);if(p==null)continue;String id=p.optString("id");if(!id.matches("[0-9]+"))continue;JSONObject file=p.optJSONObject("file"),sample=p.optJSONObject("sample"),preview=p.optJSONObject("preview"),ts=p.optJSONObject("tags");JSONObject x=new JSONObject();x.put("source","e621");x.put("page_url","https://e621.net/posts/"+id);x.put("file_url",file==null?"":file.optString("url"));x.put("preview_url",sample==null?(preview==null?"":preview.optString("url")):sample.optString("url"));x.put("title","Post #"+id);if(p.has("views"))x.put("views",p.optLong("views",-1));x.put("media_type",file!=null&&("webm".equalsIgnoreCase(file.optString("ext"))||"mp4".equalsIgnoreCase(file.optString("ext"))||"swf".equalsIgnoreCase(file.optString("ext")))?"video":"image");StringBuilder tag=new StringBuilder();if(ts!=null){java.util.Iterator<String> keys=ts.keys();while(keys.hasNext()){JSONArray a=ts.optJSONArray(keys.next());if(a!=null)for(int z=0;z<a.length();z++)tag.append(a.optString(z)).append(" ");}}x.put("tags",tag.toString().trim());out.put(x);}}else if(raw instanceof JSONArray){JSONArray arr=(JSONArray)raw;for(int j=0;j<arr.length();j++){JSONObject p=arr.optJSONObject(j);if(p==null)continue;String id=p.optString("id");if(!id.matches("[0-9]+"))continue;JSONObject x=new JSONObject();x.put("source","Rule34");x.put("page_url","https://rule34.xxx/index.php?page=post&s=view&id="+id);x.put("file_url",p.optString("file_url"));x.put("preview_url",p.optString("preview_url",p.optString("sample_url")));x.put("title","Post #"+id);if(p.has("views"))x.put("views",p.optLong("views",-1));x.put("score",p.optString("score",""));String fileType=p.optString("file_url").toLowerCase(java.util.Locale.ROOT);x.put("media_type",(fileType.contains(".mp4")||fileType.contains(".webm"))?"video":"image");x.put("tags",p.optString("tags"));out.put(x);}}send("onSearch",out.toString());}catch(Exception e){send("onSearchError","Source search unavailable.");}finally{if(c!=null)c.disconnect();}});}
- }
- @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==77){if(result==RESULT_OK&&data!=null&&data.getData()!=null&&pendingExport!=null){try(java.io.OutputStream out=getContentResolver().openOutputStream(data.getData())){out.write(pendingExport);send("onStatus","Library exported");}catch(Exception e){send("onStatus","Export failed");}}pendingExport=null;return;}if(request!=PICK||result!=RESULT_OK||data==null)return;JSONArray found=new JSONArray();if(data.getClipData()!=null){for(int j=0;j<data.getClipData().getItemCount();j++)pick(found,data.getClipData().getItemAt(j).getUri());}else if(data.getData()!=null)pick(found,data.getData());work.execute(()->{for(int i=0;i<found.length();i++)try{db.save(found.getJSONObject(i));}catch(Exception ignored){}send("onLibrary",db.all().toString());send("onStatus","Files indexed");});}
- void pick(JSONArray arr,Uri uri){try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);String name="Imported media";try(Cursor c=getContentResolver().query(uri,new String[]{android.provider.OpenableColumns.DISPLAY_NAME},null,null,null)){if(c!=null&&c.moveToFirst())name=c.getString(0);}JSONObject x=new JSONObject();x.put("source","Local file");x.put("page_url",uri.toString());x.put("file_url",uri.toString());x.put("title",name);x.put("collection","Local imports");arr.put(x);}catch(Exception ignored){}}
- class DB extends SQLiteOpenHelper{
- DB(){super(MainActivity.this,"velvet_private.db",null,1);}
- @Override public void onCreate(SQLiteDatabase d){d.execSQL("CREATE TABLE items(id INTEGER PRIMARY KEY AUTOINCREMENT,source TEXT,page_url TEXT UNIQUE,file_url TEXT,preview_url TEXT,title TEXT,tags TEXT,collection TEXT,notes TEXT,created INTEGER)");}
- @Override public void onUpgrade(SQLiteDatabase d,int oldV,int newV){}
- synchronized void save(JSONObject x){ContentValues v=new ContentValues();for(String k:new String[]{"source","page_url","file_url","preview_url","title","tags","collection","notes"})v.put(k,x.optString(k,""));if(x.optString("collection").isEmpty())v.put("collection","Unsorted");v.put("created",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("items",null,v,SQLiteDatabase.CONFLICT_IGNORE);}
- synchronized void update(JSONObject x){ContentValues v=new ContentValues();for(String k:new String[]{"title","tags","collection","notes"})v.put(k,x.optString(k,""));getWritableDatabase().update("items",v,"id=?",new String[]{x.optString("id")});}
- synchronized JSONArray all(){JSONArray arr=new JSONArray();try(Cursor c=getReadableDatabase().rawQuery("SELECT id,source,page_url,file_url,preview_url,title,tags,collection,notes FROM items ORDER BY created DESC LIMIT 5000",null)){while(c.moveToNext()){JSONObject j=new JSONObject();try{for(int i=0;i<c.getColumnCount();i++)j.put(c.getColumnName(i),c.getString(i));}catch(Exception ignored){}arr.put(j);}}return arr;}
- }
- @Override protected void onDestroy(){web.removeJavascriptInterface("Native");web.destroy();work.shutdown();db.close();super.onDestroy();}
+
+    private static final int REQ_PICK    = 42;
+    private static final int REQ_STORAGE = 43;
+    private static final int REQ_EXPORT  = 44;
+    private static final int REQ_IMPORT  = 45;
+
+    static final String UA =
+        "Mozilla/5.0 (Linux; Android 14; Pixel) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
+
+    private WebView web;
+    private FrameLayout root;
+    private DB db;
+    private MediaServer server;
+
+    private final ExecutorService io  = Executors.newSingleThreadExecutor();
+    private final ExecutorService net = Executors.newFixedThreadPool(6);
+
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private volatile boolean alive = true;
+
+    private View customView;
+    private WebChromeClient.CustomViewCallback customViewCallback;
+
+    private String pendingUrl, pendingRef, pendingName;
+
+    private final Map<String, HttpURLConnection> inflight = new HashMap<>();
+
+    @Override protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        db = new DB();
+        try { server = new MediaServer(getCacheDir(), s -> log("media: " + s)); }
+        catch (Exception e) { log("media server unavailable: " + e); }
+
+        root = new FrameLayout(this);
+        root.setBackgroundColor(Color.rgb(16, 14, 22));
+        root.setOnApplyWindowInsetsListener(this::applyInsets);
+        setContentView(root);
+
+        buildWeb();
+    }
+
+    private void buildWeb() {
+        WebView v = new WebView(this);
+        WebSettings st = v.getSettings();
+        st.setJavaScriptEnabled(true);
+        st.setDomStorageEnabled(true);
+        st.setLoadsImagesAutomatically(true);
+        st.setAllowFileAccess(true);
+        st.setAllowContentAccess(false);
+        st.setAllowFileAccessFromFileURLs(true);
+        st.setAllowUniversalAccessFromFileURLs(true);
+        st.setMediaPlaybackRequiresUserGesture(false);
+        st.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        st.setCacheMode(WebSettings.LOAD_DEFAULT);
+        st.setUseWideViewPort(true);
+        st.setLoadWithOverviewMode(true);
+
+        v.setBackgroundColor(Color.rgb(16, 14, 22));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) WebView.setWebContentsDebuggingEnabled(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(v, true);
+        v.addJavascriptInterface(new Bridge(), "Native");
+
+        v.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView w, WebResourceRequest r) {
+                return route(r.getUrl());
+            }
+            @SuppressWarnings("deprecation")
+            @Override public boolean shouldOverrideUrlLoading(WebView w, String url) {
+                return route(Uri.parse(url));
+            }
+            @Override public void onReceivedError(WebView w, WebResourceRequest r, WebResourceError e) {
+                if (r.isForMainFrame()) log("page error: " + e.getDescription());
+            }
+            @Override public boolean onRenderProcessGone(WebView w, RenderProcessGoneDetail d) {
+                log("renderer gone, rebuilding");
+                root.removeView(w);
+                w.destroy();
+                web = null;
+                buildWeb();
+                return true;
+            }
+        });
+
+        v.setWebChromeClient(new WebChromeClient() {
+            @Override public void onShowCustomView(View view, CustomViewCallback cb) {
+                if (customView != null) { cb.onCustomViewHidden(); return; }
+                customView = view;
+                customViewCallback = cb;
+                root.addView(view, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                web.setVisibility(View.GONE);
+            }
+            @Override public void onHideCustomView() {
+                if (customView == null) return;
+                root.removeView(customView);
+                customView = null;
+                web.setVisibility(View.VISIBLE);
+                customViewCallback.onCustomViewHidden();
+            }
+            @Override public boolean onConsoleMessage(ConsoleMessage m) {
+                log("js: " + m.message() + " @" + m.lineNumber());
+                return true;
+            }
+        });
+
+        web = v;
+        root.addView(v, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        v.loadUrl("file:///android_asset/index.html");
+        root.requestApplyInsets();
+    }
+
+    private WindowInsets applyInsets(View view, WindowInsets insets) {
+        if (web == null) return insets;
+        int top    = insets.getInsets(WindowInsets.Type.statusBars()).top;
+        int nav    = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+        int ime    = insets.getInsets(WindowInsets.Type.ime()).bottom;
+        int bottom = Math.max(nav, ime);
+        ViewGroup.LayoutParams lp = web.getLayoutParams();
+        if (lp instanceof FrameLayout.LayoutParams) {
+            FrameLayout.LayoutParams f = (FrameLayout.LayoutParams) lp;
+            if (f.topMargin != top || f.bottomMargin != bottom) {
+                f.topMargin = top;
+                f.bottomMargin = bottom;
+                web.setLayoutParams(f);
+            }
+        }
+        return insets;
+    }
+
+    @Override public void onBackPressed() {
+        if (web == null) { super.onBackPressed(); return; }
+        try {
+            web.evaluateJavascript("window.handleBack?window.handleBack():false", value -> {
+                if (!"true".equals(value)) exitAfterBack();
+            });
+        } catch (Exception e) { exitAfterBack(); }
+    }
+
+    private void exitAfterBack() { MainActivity.super.onBackPressed(); }
+
+    @Override protected void onPause() { super.onPause(); if (web != null) web.onPause(); }
+    @Override protected void onResume() { super.onResume(); if (web != null) web.onResume(); }
+
+    @Override protected void onDestroy() {
+        alive = false;
+        if (server != null) server.stop();
+        io.shutdown();
+        net.shutdownNow();
+        if (web != null) {
+            root.removeView(web);
+            web.removeJavascriptInterface("Native");
+            web.destroy();
+            web = null;
+        }
+        db.close();
+        super.onDestroy();
+    }
+
+    private void log(String s) { android.util.Log.d("VelvetIndex", s); }
+
+    private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
+
+    private void callJs(String fn, String... args) {
+        if (!alive) return;
+        StringBuilder sb = new StringBuilder("window.").append(fn)
+                .append("&&window.").append(fn).append('(');
+        for (int i = 0; i < args.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(JSONObject.quote(args[i] == null ? "" : args[i]));
+        }
+        sb.append(')');
+        final String js = sb.toString();
+        ui.post(() -> {
+            if (alive && web != null) {
+                try { web.evaluateJavascript(js, null); } catch (Exception ignored) {}
+            }
+        });
+    }
+
+    private boolean route(Uri u) {
+        if (u == null || u.getScheme() == null) return false;
+        String scheme = u.getScheme().toLowerCase(Locale.ROOT);
+        if (scheme.equals("file") || scheme.equals("about")
+                || scheme.equals("data") || scheme.equals("blob")
+                || scheme.equals("javascript")) return false;
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, u);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (ActivityNotFoundException e) {
+            toast("Nothing installed can open " + scheme + ": links");
+        } catch (Exception e) {
+            toast("Could not open link");
+        }
+        return true;
+    }
+
+    private SharedPreferences prefs() { return getSharedPreferences("velvet", MODE_PRIVATE); }
+
+    private void requestDownload(String url, String referer, String name) {
+        if (url == null || !url.startsWith("http")) { toast("Not a downloadable URL"); return; }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+                && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                   != PackageManager.PERMISSION_GRANTED) {
+            pendingUrl = url; pendingRef = referer; pendingName = name;
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE);
+            return;
+        }
+        enqueueDownload(url, referer, name);
+    }
+
+    private void enqueueDownload(String url, String referer, String name) {
+        try {
+            boolean viaProxy = prefs().getBoolean("download_via_proxy", false)
+                    && server != null && referer != null && !referer.isEmpty();
+            String fetchUrl = viaProxy
+                    ? "http://127.0.0.1:" + server.port + "/m?u="
+                      + Uri.encode(url) + "&r=" + Uri.encode(referer)
+                    : url;
+
+            String ext = guessExt(url);
+            String base = (name == null || name.trim().isEmpty())
+                    ? "velvet_" + System.currentTimeMillis()
+                    : sanitize(name.trim());
+            if (base.length() > 60) base = base.substring(0, 60);
+            String file = base + "." + ext;
+
+            DownloadManager.Request req = new DownloadManager.Request(Uri.parse(fetchUrl));
+            req.setTitle(file);
+            req.setMimeType(mimeFor(ext));
+            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            if (!viaProxy) {
+                req.addRequestHeader("User-Agent", UA);
+                if (referer != null && !referer.isEmpty()) req.addRequestHeader("Referer", referer);
+            }
+            req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, file);
+            ((DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(req);
+            toast("Downloading " + file);
+        } catch (Exception e) {
+            toast("Download failed: " + e.getMessage());
+        }
+    }
+
+    private static String guessExt(String url) {
+        String path = url;
+        int q = path.indexOf('?');
+        if (q > 0) path = path.substring(0, q);
+        int d = path.lastIndexOf('.');
+        if (d > 0 && path.length() - d <= 6) {
+            String e = path.substring(d + 1).toLowerCase(Locale.ROOT);
+            if (e.matches("jpe?g|png|gif|webp|avif|bmp|mp4|webm|mkv|mov|m4v|ts|flv|mp3|m4a")) return e;
+        }
+        return "jpg";
+    }
+
+    private static String mimeFor(String ext) {
+        switch (ext) {
+            case "mp4": case "m4v": return "video/mp4";
+            case "webm": return "video/webm";
+            case "mkv":  return "video/x-matroska";
+            case "mov":  return "video/quicktime";
+            case "png":  return "image/png";
+            case "gif":  return "image/gif";
+            case "webp": return "image/webp";
+            case "avif": return "image/avif";
+            default:     return "image/jpeg";
+        }
+    }
+
+    private static String sanitize(String s) {
+        return s.replaceAll("[^A-Za-z0-9 _.-]", "_").replaceAll("\\s+", "_");
+    }
+
+    @Override public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(req, perms, res);
+        if (req == REQ_STORAGE && res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED) {
+            enqueueDownload(pendingUrl, pendingRef, pendingName);
+        } else if (req == REQ_STORAGE) {
+            toast("Storage permission denied");
+        }
+    }
+
+    @Override protected void onActivityResult(int req, int result, Intent data) {
+        super.onActivityResult(req, result, data);
+        if (result != RESULT_OK || data == null) return;
+
+        if (req == REQ_PICK) { indexPickedFiles(data); return; }
+
+        if (req == REQ_EXPORT) {
+            try (OutputStream os = getContentResolver().openOutputStream(data.getData())) {
+                os.write(db.all().toString(2).getBytes("UTF-8"));
+                toast("Library exported");
+            } catch (Exception e) { toast("Export failed: " + e.getMessage()); }
+            return;
+        }
+
+        if (req == REQ_IMPORT) {
+            try (InputStream is = getContentResolver().openInputStream(data.getData())) {
+                ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+                JSONArray arr = new JSONArray(bo.toString("UTF-8"));
+                final int[] added = {0};
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject o = arr.optJSONObject(i);
+                    if (o != null && db.saveObj(o)) added[0]++;
+                }
+                callJs("onLibrary", db.all().toString());
+                callJs("onStatus", "Imported " + added[0] + " items");
+            } catch (Exception e) { toast("Import failed: " + e.getMessage()); }
+        }
+    }
+
+    private void indexPickedFiles(Intent data) {
+        final JSONArray found = new JSONArray();
+        try {
+            if (data.getClipData() != null) {
+                for (int i = 0; i < data.getClipData().getItemCount(); i++)
+                    describe(found, data.getClipData().getItemAt(i).getUri());
+            } else if (data.getData() != null) {
+                describe(found, data.getData());
+            }
+        } catch (Exception e) { toast("Could not read selection"); return; }
+
+        io.execute(() -> {
+            for (int i = 0; i < found.length(); i++) {
+                try { db.saveObj(found.getJSONObject(i)); } catch (Exception ignored) {}
+            }
+            callJs("onLibrary", db.all().toString());
+            callJs("onStatus", "Indexed " + found.length() + " file(s)");
+        });
+    }
+
+    private void describe(JSONArray arr, Uri uri) {
+        try {
+            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            String name = "Imported media";
+            String type = getContentResolver().getType(uri);
+            try (Cursor c = getContentResolver().query(uri,
+                    new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                if (c != null && c.moveToFirst()) name = c.getString(0);
+            }
+            JSONObject x = new JSONObject();
+            x.put("source", "Local file");
+            x.put("page_url", uri.toString());
+            x.put("file_url", uri.toString());
+            x.put("title", name);
+            x.put("collection", "Local imports");
+            x.put("media_type", type != null && type.startsWith("video") ? "video" : "image");
+            arr.put(x);
+        } catch (Exception ignored) {}
+    }
+
+    class Bridge {
+
+        @JavascriptInterface public int proxyPort() { return server == null ? 0 : server.port; }
+
+        @JavascriptInterface public void logMsg(String s) { log("js: " + s); }
+
+        @JavascriptInterface public void list() {
+            io.execute(() -> callJs("onLibrary", db.all().toString()));
+        }
+
+        @JavascriptInterface public void save(String s) {
+            io.execute(() -> {
+                try {
+                    boolean added = db.saveObj(new JSONObject(s));
+                    callJs("onLibrary", db.all().toString());
+                    callJs("onStatus", added ? "Saved" : "Already in library");
+                } catch (Exception e) { callJs("onStatus", "Save failed"); }
+            });
+        }
+
+        @JavascriptInterface public void update(String s) {
+            io.execute(() -> {
+                try { db.update(new JSONObject(s)); callJs("onLibrary", db.all().toString()); }
+                catch (Exception e) { callJs("onStatus", "Update failed"); }
+            });
+        }
+
+        @JavascriptInterface public void remove(int id) {
+            io.execute(() -> {
+                db.getWritableDatabase().delete("items", "id=?", new String[]{String.valueOf(id)});
+                callJs("onLibrary", db.all().toString());
+                callJs("onStatus", "Deleted");
+            });
+        }
+
+        @JavascriptInterface public void toggleFav(int id, boolean fav) {
+            io.execute(() -> {
+                ContentValues v = new ContentValues();
+                v.put("fav", fav ? 1 : 0);
+                db.getWritableDatabase().update("items", v, "id=?", new String[]{String.valueOf(id)});
+                callJs("onLibrary", db.all().toString());
+            });
+        }
+
+        @JavascriptInterface public void fetch(String reqId, String url, String headersJson) {
+            net.execute(() -> {
+                HttpURLConnection c = null;
+                try {
+                    URL u = new URL(url);
+                    String proto = u.getProtocol();
+                    if (!"https".equals(proto) && !"http".equals(proto)) throw new Exception("bad scheme");
+                    c = (HttpURLConnection) u.openConnection();
+                    c.setInstanceFollowRedirects(true);
+                    c.setConnectTimeout(15000);
+                    c.setReadTimeout(25000);
+                    c.setRequestProperty("User-Agent", UA);
+                    c.setRequestProperty("Accept", "application/json, text/plain, */*");
+                    if (headersJson != null && !headersJson.isEmpty() && !headersJson.equals("{}")) {
+                        JSONObject h = new JSONObject(headersJson);
+                        for (Iterator<String> it = h.keys(); it.hasNext(); ) {
+                            String k = it.next();
+                            c.setRequestProperty(k, h.optString(k));
+                        }
+                    }
+                    synchronized (inflight) { inflight.put(reqId, c); }
+
+                    int status = c.getResponseCode();
+                    InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
+                    String body = "";
+                    if (in != null) {
+                        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                        byte[] buf = new byte[16384];
+                        int n, total = 0;
+                        while ((n = in.read(buf)) > 0 && total < 8000000) { bo.write(buf, 0, n); total += n; }
+                        in.close();
+                        body = bo.toString("UTF-8");
+                    }
+
+                    JSONObject hs = new JSONObject();
+                    for (Map.Entry<String, List<String>> e : c.getHeaderFields().entrySet()) {
+                        if (e.getKey() == null) continue;
+                        List<String> v = e.getValue();
+                        hs.put(e.getKey().toLowerCase(Locale.ROOT), v == null || v.isEmpty() ? "" : v.get(0));
+                    }
+                    callJs("onFetch", reqId, String.valueOf(status), hs.toString(), body);
+                } catch (Exception e) {
+                    callJs("onFetchError", reqId, String.valueOf(e.getMessage()));
+                } finally {
+                    synchronized (inflight) { inflight.remove(reqId); }
+                    if (c != null) c.disconnect();
+                }
+            });
+        }
+
+        @JavascriptInterface public void abort(String reqId) {
+            HttpURLConnection c;
+            synchronized (inflight) { c = inflight.get(reqId); }
+            if (c != null) { try { c.disconnect(); } catch (Exception ignored) {} }
+        }
+
+        @JavascriptInterface public void probe(String reqId, String url, String referer) {
+            net.execute(() -> {
+                HttpURLConnection c = null;
+                try {
+                    c = (HttpURLConnection) new URL(url).openConnection();
+                    c.setInstanceFollowRedirects(true);
+                    c.setConnectTimeout(12000);
+                    c.setReadTimeout(15000);
+                    c.setRequestProperty("User-Agent", UA);
+                    c.setRequestProperty("Accept-Encoding", "identity");
+                    c.setRequestProperty("Range", "bytes=0-0");
+                    if (referer != null && !referer.isEmpty()) c.setRequestProperty("Referer", referer);
+                    int status = c.getResponseCode();
+                    JSONObject o = new JSONObject();
+                    o.put("status", status);
+                    o.put("type", String.valueOf(c.getContentType()));
+                    o.put("length", String.valueOf(c.getHeaderField("Content-Range")));
+                    o.put("acceptRanges", String.valueOf(c.getHeaderField("Accept-Ranges")));
+                    o.put("playable", status == 200 || status == 206);
+                    callJs("onProbe", reqId, o.toString());
+                } catch (Exception e) {
+                    callJs("onProbe", reqId, "{\"status\":0,\"playable\":false}");
+                } finally { if (c != null) c.disconnect(); }
+            });
+        }
+
+        @JavascriptInterface public void open(String s) { ui.post(() -> route(Uri.parse(s))); }
+
+        @JavascriptInterface public void toast(String s) { ui.post(() -> MainActivity.this.toast(s)); }
+
+        @JavascriptInterface public void download(String url, String referer, String name) {
+            ui.post(() -> requestDownload(url, referer, name));
+        }
+
+        @JavascriptInterface public void importMedia() {
+            ui.post(() -> {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.setType("*/*");
+                i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "video/*"});
+                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                startActivityForResult(i, REQ_PICK);
+            });
+        }
+
+        @JavascriptInterface public void viewLocal(String uri) {
+            ui.post(() -> {
+                try {
+                    Uri u = Uri.parse(uri);
+                    if (!"content".equals(u.getScheme())) { toast("Not a local file"); return; }
+                    Intent i = new Intent(Intent.ACTION_VIEW);
+                    i.setDataAndType(u, getContentResolver().getType(u));
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(i);
+                } catch (Exception e) { toast("No compatible viewer installed"); }
+            });
+        }
+
+        @JavascriptInterface public void exportLibrary() {
+            ui.post(() -> {
+                Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("application/json");
+                i.putExtra(Intent.EXTRA_TITLE, "velvet-library-"
+                        + new SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(new Date()) + ".json");
+                startActivityForResult(i, REQ_EXPORT);
+            });
+        }
+
+        @JavascriptInterface public void importLibrary() {
+            ui.post(() -> {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("application/json");
+                startActivityForResult(i, REQ_IMPORT);
+            });
+        }
+
+        @JavascriptInterface public String getPref(String k) { return prefs().getString(k, ""); }
+
+        @JavascriptInterface public void setPref(String k, String v) {
+            prefs().edit().putString(k, v).apply();
+        }
+
+        @JavascriptInterface public boolean getFlag(String k, boolean def) {
+            return prefs().getBoolean(k, def);
+        }
+
+        @JavascriptInterface public void setFlag(String k, boolean v) {
+            prefs().edit().putBoolean(k, v).apply();
+        }
+
+        @JavascriptInterface public void clearCache() {
+            if (server != null) server.clearCache();
+            if (web != null) web.clearCache(true);
+            callJs("onStatus", "Cache cleared");
+        }
+    }
+
+    class DB extends SQLiteOpenHelper {
+
+        DB() { super(MainActivity.this, "velvet_private.db", null, 2); }
+
+        private static final String CREATE =
+            "CREATE TABLE items(" +
+            "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "source TEXT, page_url TEXT UNIQUE, file_url TEXT, preview_url TEXT," +
+            "title TEXT, tags TEXT, collection TEXT, notes TEXT," +
+            "media_type TEXT, rating TEXT, score INTEGER DEFAULT 0," +
+            "width INTEGER DEFAULT 0, height INTEGER DEFAULT 0, duration INTEGER DEFAULT 0," +
+            "fav INTEGER DEFAULT 0, created INTEGER)";
+
+        @Override public void onCreate(SQLiteDatabase d) {
+            d.execSQL(CREATE);
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_items_created ON items(created DESC)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_items_coll ON items(collection)");
+        }
+
+        @Override public void onUpgrade(SQLiteDatabase d, int oldV, int newV) {
+            if (oldV < 2) {
+                try { d.execSQL("ALTER TABLE items ADD COLUMN media_type TEXT"); } catch (Exception ignored) {}
+                try { d.execSQL("ALTER TABLE items ADD COLUMN rating TEXT"); } catch (Exception ignored) {}
+                try { d.execSQL("ALTER TABLE items ADD COLUMN score INTEGER DEFAULT 0"); } catch (Exception ignored) {}
+                try { d.execSQL("ALTER TABLE items ADD COLUMN width INTEGER DEFAULT 0"); } catch (Exception ignored) {}
+                try { d.execSQL("ALTER TABLE items ADD COLUMN height INTEGER DEFAULT 0"); } catch (Exception ignored) {}
+                try { d.execSQL("ALTER TABLE items ADD COLUMN duration INTEGER DEFAULT 0"); } catch (Exception ignored) {}
+                try { d.execSQL("ALTER TABLE items ADD COLUMN fav INTEGER DEFAULT 0"); } catch (Exception ignored) {}
+            }
+        }
+
+        private static final String[] COLS = {
+            "source", "page_url", "file_url", "preview_url", "title",
+            "tags", "collection", "notes", "media_type", "rating"
+        };
+
+        synchronized boolean saveObj(JSONObject x) {
+            String page = x.optString("page_url", "");
+            String file = x.optString("file_url", "");
+            if (page.isEmpty() && file.isEmpty()) return false;
+
+            ContentValues v = new ContentValues();
+            for (String k : COLS) v.put(k, x.optString(k, ""));
+            if (v.getAsString("collection") == null || v.getAsString("collection").isEmpty())
+                v.put("collection", "Unsorted");
+            v.put("score", x.optInt("score", 0));
+            v.put("created", System.currentTimeMillis());
+            long row = getWritableDatabase()
+                    .insertWithOnConflict("items", null, v, SQLiteDatabase.CONFLICT_IGNORE);
+            return row != -1;
+        }
+
+        synchronized void update(JSONObject x) {
+            ContentValues v = new ContentValues();
+            for (String k : new String[]{"title", "tags", "collection", "notes"})
+                v.put(k, x.optString(k, ""));
+            getWritableDatabase().update("items", v, "id=?", new String[]{x.optString("id")});
+        }
+
+        synchronized JSONArray all() {
+            JSONArray arr = new JSONArray();
+            try (Cursor c = getReadableDatabase().rawQuery(
+                    "SELECT id,source,page_url,file_url,preview_url,title,tags,collection,notes," +
+                    "media_type,rating,score,fav FROM items ORDER BY created DESC LIMIT 5000", null)) {
+                while (c.moveToNext()) {
+                    JSONObject j = new JSONObject();
+                    try {
+                        for (int i = 0; i < c.getColumnCount(); i++) {
+                            String col = c.getColumnName(i);
+                            if (c.isNull(i)) j.put(col, "");
+                            else if ("id".equals(col) || "score".equals(col) || "fav".equals(col))
+                                j.put(col, c.getLong(i));
+                            else j.put(col, c.getString(i));
+                        }
+                    } catch (Exception ignored) {}
+                    arr.put(j);
+                }
+            }
+            return arr;
+        }
+    }
 }

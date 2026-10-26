@@ -1,37 +1,95 @@
-# Velvet Index Android
-Private local-first media catalogue for Android 8+.
+# Velvet Index
 
-Features: public Rule34 tag search; X media discovery in browser; private SQLite bookmarks and collections; file-picker indexing of local images and videos.
+Local-first Android catalogue for finding **niche** adult content — the stuff mainstream
+tube sites don't tag. Built around booru tag vocabularies, real-world leak archives, and
+open browser shortcuts. Nothing is filtered unless you ask.
 
-## Build an APK
-The GitHub Actions workflow in `.github/workflows/build-apk.yml` builds a debug APK automatically on push or via the Actions > Build private Android APK > Run workflow menu. Find the downloadable ZIP under the successful run's Artifacts section, extract `app-debug.apk`, then install it on Android. Debug APKs are suitable for private testing only. Later builds may be signed with different debug keys.
+Not affiliated with any provider. Only index what you're allowed to access.
 
-The app has not been tested on an Android phone. It does not download external media or play local content internally yet. Only index lawful, consensual content that you are permitted to access.
+## What it does
 
-## Version 0.3 discovery and organisation
-- Combined API search across Rule34 and e621, with a choice to search one provider alone.
-- Adult-video discovery shortcuts for Pornhub, XVideos, xHamster, Japanese catalogue metadata (JAVLibrary), IAFD and independent creators (ManyVids). These open the provider or a site-scoped web search; they are **not** integrated scraping, automated indexing or downloadable search results.
-- Library filtering by collection, source and keywords; URL normalisation for search-result deduplication and duplicate-link inspection.
-- Media preview and optional Android Download Manager saving, when authorised.
+- **Multi-source tag search** across e621, Rule34, Gelbooru, Danbooru, Konachan, yande.re,
+  Coomer and Kemono — all at once or one at a time.
+- **Local media proxy** (`127.0.0.1`) that sets the right `Referer`/`User-Agent` per host,
+  so previews and video streams work on hotlink-protected CDNs.
+- **24-category tag taxonomy** for dark / non-con, zoo, leaks, teen, futa, furry, BDSM,
+  hyper, NTR and more.
+- **Private library** in on-device SQLite: collections, tags, notes, favourites,
+  duplicate detection, JSON export/import.
+- **22 browser shortcuts** for sites with no API (JAVLibrary, IAFD, X, Reddit, nHentai,
+  Hanime, F95Zone, ManyVids).
 
-Still planned: native video search adapters where explicitly permitted, thumbnail generation for imported local files, binary/file-hash duplicate detection, and optional on-device AI tagging. No age-gate bypass, login bypass, access to private media, or indexing of nonconsensual content.
+## Build
 
-## Experimental real-person video search
-A first apiJAV catalogue adapter searches publicly documented video metadata (title, thumbnail, studio, release code, duration) and adds cards to the unified results feed. The API and thumbnail hosts may be unreliable; neither media hosting permission nor playback rights have been verified, so the app links to provider metadata and does not proxy or download video streams from this adapter. This is not Pornhub integration. Future adapters should require permission-compatible access and stable metadata/thumbnail rights.
+Push to `main` and grab `VelvetIndex-debug.apk` from the run's Artifacts. Or locally:
 
-## Experimental Lustpress-compatible video sources (v0.6)
-Under About > Video source settings, specify an HTTPS endpoint of a Lustpress-compatible instance you operate or are authorised to access. Search has provider-specific options for Pornhub, XVideos, xHamster, XNXX, RedTube, YouPorn, Eporner and TXXX. API response parsing accepts common `data[]`, `data.results[]`, `data.videos[]` etc. Thumbnail/title/source URLs are displayed when returned; playback remains with the publisher. Providers may reject requests or return unexpected response shapes. No service is bundled and no access restrictions are bypassed by Velvet Index.
+    gradle wrapper          # once, to generate gradlew
+    ./gradlew assembleDebug
 
-**Important:** The Lustpress maintainers say they discontinued their hosted public API on 11 March 2026, so the app requires a separately deployed or authorised HTTPS instance. Do not enter access tokens in the URL. The Android code was not compiled or integration-tested in this workspace; it requires a successful GitHub Actions build and real provider testing.
+Install over ADB (`adb install -r app-debug.apk`) or by opening the APK on the phone.
 
-## Continuous Deep Discovery pagination (v0.7)
-The depth selector chooses the **size of each batch**, not the maximum search depth. Tap **Next batch** repeatedly to retrieve subsequent pages and append deduplicated results. Requests finish before the next batch is enabled. A batch with no items and no source errors marks the current search as exhausted; failed requests leave retry options. The public APIs may impose their own pagination limits or rate limits. Only authorised public material should be indexed; no leak-hunting.
+Requires Android 8.0+. `targetSdk 35`, `compileSdk 35`, AGP 8.7.3, JDK 17.
 
-## Obscure First and direct archive jump (v0.8)
-Result sorting can prioritise lower view counts when a provider actually supplies view statistics. Missing popularity data is explicitly unranked (not guessed). An optional page-number jump lets you request distant batches without tapping Next dozens of times, while continuous Next batches continue from that point. **This is a fetched-results ranking, not a universal server-side least-viewed search.** Individual providers may cap or reject distant pages. Filters based on words in titles (including consensually staged themes) are not added.
+## Finding dark content — the actual workflow
 
-## In-app viewing v0.9
-- Results with explicitly supplied HTTPS direct media URLs can open in an in-app full-screen image viewer or an HTML5 video player (MP4/WebM support depends on Android WebView codec support).
-- The media viewer supports bookmarking to the private library, opening the source, and downloading directly supplied compatible image/video files through Android Download Manager.
-- Catalogue-only results show a preview and explain that the source has **not supplied a playable/downloadable media URL**.
-- The configurable video API adapter now accepts `direct_media_url` or `media_url` fields from an authorised source. It does **not** extract embedded streams from arbitrary websites, bypass DRM, defeat access controls, or download third-party hosted content without rights. The integration has not been tested on a device.
+Mainstream tube sites are useless for this. Use the right tool:
+
+| What you want | Where it lives | How |
+|---|---|---|
+| Non-con / mind-break / forced | Boorus | Tags tab -> Dark / Non-con. Search `rape animated` on e621 |
+| Zoo / bestiality | e621, Gelbooru | Tags tab -> Zoo. Add `animated` |
+| Real leaked / amateur | Coomer, Kemono, X, Reddit | Search a creator handle, or the browser links |
+| "Teen" as a real age | Anywhere | `petite` / `flat_chest` beats `teen` as a tag |
+| JAV / Japanese | JAVLibrary + tubes | Look up the code, then search the tube sites |
+| Something genuinely obscure | Boorus | Sort Obscure first — sorts by lowest score |
+
+**Tips that matter:**
+
+- Booru tags use underscores: `mind_break`, `flat_chest`, `netorare`.
+- Append `animated` to get motion instead of stills.
+- Append `rating:e` to kill all safe/questionable results.
+- `order:random` and `score:>50` are e621/Danbooru meta-tags.
+- Long-press a tag chip to *append* it instead of replacing your query.
+- If an API returns nothing, use Open-in-browser sites — 22 shortcuts, nothing filtered.
+
+## Sources
+
+| Source | Group | Key needed |
+|---|---|---|
+| e621, Rule34 | Booru | no |
+| Gelbooru | Booru | optional (removes rate cap) |
+| Danbooru, Konachan, yande.re | Booru | no (off by default) |
+| Coomer, Kemono | Real / Leaks | no |
+| Reddit | Real / Leaks | no (often throttled) |
+| Pornhub, XVideos, xHamster +5 | Video API | needs your own instance |
+
+Adding a source is ~10 lines in `app/src/main/assets/sources.js` — no Java rebuild.
+
+## Architecture
+
+    MainActivity  --JS bridge--  index.html / sources.js / tags.js
+         |                              |
+         |  MediaServer (127.0.0.1) ----+  img/video via /m?u=&r=
+         |  SQLite (velvet_private.db)
+         +  HttpURLConnection fetch pool
+
+- Network runs on a 6-thread pool; SQLite on its own single thread, so the library
+  stays responsive during a search.
+- The proxy binds to loopback only. No ports open to the LAN.
+- No accounts, no cloud sync, no analytics.
+
+## Limitations (honest list)
+
+- The video-provider adapter needs a Lustpress-compatible API you host — the public
+  one shut down in March 2026.
+- The proxy sets `Referer` from the item's page origin. Some CDNs want a *different*
+  referer; if a preview stays blocked, use Source to open it in a browser.
+- Downloads go direct by default (works even if the app is killed). Flip the toggle in
+  Settings to route them through the proxy when a CDN demands a referer.
+- Reddit's public JSON endpoint throttles aggressively.
+- Not tested on a real device yet. Rotate the screen, tap an http link, download
+  something, play a video, press back — that's the smoke test.
+
+## Licence
+
+MIT. Taxonomy and source list are opinionated suggestions, not gospel.
