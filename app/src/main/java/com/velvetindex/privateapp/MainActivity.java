@@ -8,6 +8,10 @@ import android.database.sqlite.*;
 import android.net.Uri;
 import android.webkit.*;
 import android.graphics.Color;
+import android.os.Build;
+import android.view.WindowInsets;
+import android.widget.FrameLayout;
+import android.view.ViewGroup;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.os.Environment;
@@ -21,7 +25,7 @@ public class MainActivity extends Activity {
  WebView web; DB db; ExecutorService work=Executors.newSingleThreadExecutor(); static final int PICK=42;
  void send(String fn,String data){runOnUiThread(()->web.evaluateJavascript("window."+fn+"("+JSONObject.quote(data)+")",null));}
  void browser(String s){try{Uri u=Uri.parse(s);if("https".equals(u.getScheme()))startActivity(new Intent(Intent.ACTION_VIEW,u));}catch(Exception ignored){}}
- @Override public void onCreate(Bundle b){super.onCreate(b);db=new DB();web=new WebView(this);web.setBackgroundColor(Color.rgb(16,14,22));web.getSettings().setJavaScriptEnabled(true);web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);web.addJavascriptInterface(new Bridge(),"Native");web.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView w,WebResourceRequest r){browser(r.getUrl().toString());return true;}});setContentView(web);web.loadUrl("file:///android_asset/index.html");}
+ @Override public void onCreate(Bundle b){super.onCreate(b);db=new DB();web=new WebView(this);web.setBackgroundColor(Color.rgb(16,14,22));web.getSettings().setJavaScriptEnabled(true);web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);web.addJavascriptInterface(new Bridge(),"Native");web.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView w,WebResourceRequest r){browser(r.getUrl().toString());return true;}});FrameLayout root=new FrameLayout(this);root.setBackgroundColor(Color.rgb(16,14,22));FrameLayout.LayoutParams contentParams=new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT);root.addView(web,contentParams);setContentView(root);if(Build.VERSION.SDK_INT>=35){root.setOnApplyWindowInsetsListener((view,insets)->{int bottom=insets.getInsets(WindowInsets.Type.navigationBars()).bottom;FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)web.getLayoutParams();if(lp.bottomMargin!=bottom){lp.bottomMargin=bottom;web.setLayoutParams(lp);}return insets;});root.requestApplyInsets();}web.loadUrl("file:///android_asset/index.html");}
  class Bridge{
  @JavascriptInterface public void list(){work.execute(()->send("onLibrary",db.all().toString()));}
  @JavascriptInterface public void save(String s){work.execute(()->{try{db.save(new JSONObject(s));send("onLibrary",db.all().toString());send("onStatus","Saved");}catch(Exception e){send("onStatus","Save failed");}});}
