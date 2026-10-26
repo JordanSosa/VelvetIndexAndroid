@@ -29,3 +29,9 @@ The depth selector chooses the **size of each batch**, not the maximum search de
 
 ## Obscure First and direct archive jump (v0.8)
 Result sorting can prioritise lower view counts when a provider actually supplies view statistics. Missing popularity data is explicitly unranked (not guessed). An optional page-number jump lets you request distant batches without tapping Next dozens of times, while continuous Next batches continue from that point. **This is a fetched-results ranking, not a universal server-side least-viewed search.** Individual providers may cap or reject distant pages. Filters based on words in titles (including consensually staged themes) are not added.
+
+## In-app viewing v0.9
+- Results with explicitly supplied HTTPS direct media URLs can open in an in-app full-screen image viewer or an HTML5 video player (MP4/WebM support depends on Android WebView codec support).
+- The media viewer supports bookmarking to the private library, opening the source, and downloading directly supplied compatible image/video files through Android Download Manager.
+- Catalogue-only results show a preview and explain that the source has **not supplied a playable/downloadable media URL**.
+- The configurable video API adapter now accepts `direct_media_url` or `media_url` fields from an authorised source. It does **not** extract embedded streams from arbitrary websites, bypass DRM, defeat access controls, or download third-party hosted content without rights. The integration has not been tested on a device.
