@@ -15,3 +15,6 @@ The app has not been tested on an Android phone. It does not download external m
 - Media preview and optional Android Download Manager saving, when authorised.
 
 Still planned: native video search adapters where explicitly permitted, thumbnail generation for imported local files, binary/file-hash duplicate detection, and optional on-device AI tagging. No age-gate bypass, login bypass, access to private media, or indexing of nonconsensual content.
+
+## Experimental real-person video search
+A first apiJAV catalogue adapter searches publicly documented video metadata (title, thumbnail, studio, release code, duration) and adds cards to the unified results feed. The API and thumbnail hosts may be unreliable; neither media hosting permission nor playback rights have been verified, so the app links to provider metadata and does not proxy or download video streams from this adapter. This is not Pornhub integration. Future adapters should require permission-compatible access and stable metadata/thumbnail rights.
