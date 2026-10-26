@@ -51,7 +51,7 @@ public class MainActivity extends Activity {
  if(rows==null)rows=raw.optJSONArray("results");JSONArray out=new JSONArray();
  if(rows!=null)for(int i=0;i<rows.length();i++){JSONObject item=rows.optJSONObject(i);if(item==null)continue;
  String link=item.optString("link",item.optString("url"));if(!link.startsWith("https://"))continue;
- JSONObject x=new JSONObject();x.put("source",provider);x.put("page_url",link);x.put("file_url","");
+ JSONObject x=new JSONObject();x.put("source",provider);x.put("page_url",link);String direct=item.optString("direct_media_url",item.optString("media_url",""));x.put("file_url",direct.startsWith("https://")&&direct.matches("(?i).*\\\\.(mp4|webm|jpg|jpeg|png|gif|webp)(\\\\?.*)?$")?direct:"");
  String thumb=item.optString("thumbnail",item.optString("thumb",item.optString("image",item.optString("poster"))));
  x.put("preview_url",thumb.startsWith("https://")?thumb:"");x.put("title",item.optString("title","Video"));if(item.has("views"))x.put("views",item.optLong("views",-1));else if(item.has("view_count"))x.put("views",item.optLong("view_count",-1));x.put("media_type","video");x.put("tags",item.optString("tags",""));x.put("notes","Provider metadata only; open publisher for playback");out.put(x);
  }send("onSearch",out.toString());
