@@ -26,3 +26,6 @@ Under About > Video source settings, specify an HTTPS endpoint of a Lustpress-co
 
 ## Continuous Deep Discovery pagination (v0.7)
 The depth selector chooses the **size of each batch**, not the maximum search depth. Tap **Next batch** repeatedly to retrieve subsequent pages and append deduplicated results. Requests finish before the next batch is enabled. A batch with no items and no source errors marks the current search as exhausted; failed requests leave retry options. The public APIs may impose their own pagination limits or rate limits. Only authorised public material should be indexed; no leak-hunting.
+
+## Obscure First and direct archive jump (v0.8)
+Result sorting can prioritise lower view counts when a provider actually supplies view statistics. Missing popularity data is explicitly unranked (not guessed). An optional page-number jump lets you request distant batches without tapping Next dozens of times, while continuous Next batches continue from that point. **This is a fetched-results ranking, not a universal server-side least-viewed search.** Individual providers may cap or reject distant pages. Filters based on words in titles (including consensually staged themes) are not added.
