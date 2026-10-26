@@ -18,3 +18,8 @@ Still planned: native video search adapters where explicitly permitted, thumbnai
 
 ## Experimental real-person video search
 A first apiJAV catalogue adapter searches publicly documented video metadata (title, thumbnail, studio, release code, duration) and adds cards to the unified results feed. The API and thumbnail hosts may be unreliable; neither media hosting permission nor playback rights have been verified, so the app links to provider metadata and does not proxy or download video streams from this adapter. This is not Pornhub integration. Future adapters should require permission-compatible access and stable metadata/thumbnail rights.
+
+## Experimental Lustpress-compatible video sources (v0.6)
+Under About > Video source settings, specify an HTTPS endpoint of a Lustpress-compatible instance you operate or are authorised to access. Search has provider-specific options for Pornhub, XVideos, xHamster, XNXX, RedTube, YouPorn, Eporner and TXXX. API response parsing accepts common `data[]`, `data.results[]`, `data.videos[]` etc. Thumbnail/title/source URLs are displayed when returned; playback remains with the publisher. Providers may reject requests or return unexpected response shapes. No service is bundled and no access restrictions are bypassed by Velvet Index.
+
+**Important:** The Lustpress maintainers say they discontinued their hosted public API on 11 March 2026, so the app requires a separately deployed or authorised HTTPS instance. Do not enter access tokens in the URL. The Android code was not compiled or integration-tested in this workspace; it requires a successful GitHub Actions build and real provider testing.
